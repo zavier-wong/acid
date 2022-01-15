@@ -6,8 +6,11 @@
 #define ACID_RPC_CLIENT_H
 #include <memory>
 #include <functional>
+#include <future>
+#include "acid/io_manager.h"
 #include "acid/net/socket.h"
 #include "acid/net/socket_stream.h"
+#include "protocol.h"
 #include "rpc.h"
 namespace acid::rpc {
 /**
@@ -47,11 +50,11 @@ public:
         using args_type = std::tuple<typename std::decay<Params>::type...>;
         args_type args = std::make_tuple(ps...);
 
-        Serializer ds;
-        ds << name;
-        package_params(ds, args);
-        ds.reset();
-        return call<R>(ds);
+        Serializer::ptr s = std::make_shared<Serializer>();
+        (*s) << name;
+        package_params(*s, args);
+        s->reset();
+        return call<R>(s);
     }
     /**
      * @brief 无参数的调用
@@ -60,12 +63,23 @@ public:
      */
     template<typename R>
     Result<R> call(const std::string& name) {
-        Serializer ds;
-        ds << name;
-        ds.reset();
-        return call<R>(ds);
+        Serializer::ptr s = std::make_shared<Serializer>();
+        (*s) << name;
+        s->reset();
+        return call<R>(s);
     }
 
+    template<typename R,typename... Params>
+    std::future<Result<R>> async_call(const std::string& name, Params&& ... ps) {
+        std::function<Result<R>()> task = [name, ps..., this] () -> Result<R> {
+            return call<R>(name, ps...);
+        };
+        auto promise = std::make_shared<std::promise<Result<R>>>();
+        acid::IOManager::GetThis()->submit([task, promise]{
+            promise->set_value(task());
+        });
+        return promise->get_future();
+    }
 private:
     /**
      * @brief 实际调用
@@ -73,66 +87,22 @@ private:
      * @return 返回调用结果
      */
     template<typename R>
-    Result<R> call(Serializer& s) {
+    Result<R> call(Serializer::ptr s) {
         Result<R> val;
         if (!m_socket) {
             val.setCode(RPC_CLOSED);
             val.setMsg("socket closed");
-
             return val;
         }
-
-        if (!sendRequest(s)) {
+        Protocol::ptr request = std::make_shared<Protocol>();
+        request->setContent(s->toString());
+        if (!sendRequest(request)) {
             val.setCode(RPC_CLOSED);
             val.setMsg("socket closed");
             return val;
         }
-        val = recvResponse<R>();
-        return val;
-    }
-    /**
-     * @brief 发起网络请求
-     * @param[in] s 序列化的函数请求
-     * @return 返回调用是否成功
-     */
-    bool sendRequest(Serializer& s) {
-        SocketStream::ptr stream = std::make_shared<SocketStream>(m_socket, false);
-        const std::string& str = s.toString();
-
-        ByteArray::ptr byteArray = std::make_shared<ByteArray>();
-        byteArray->writeFint32(s.size());
-        byteArray->setPosition(0);
-        if (stream->writeFixSize(byteArray, byteArray->getSize()) < 0) {
-            return false;
-        }
-        if (stream->writeFixSize(s.getByteArray(), s.size()) < 0) {
-            return false;
-        }
-
-        return true;
-    }
-    /**
-     * @brief 接受网络响应
-     * @return 返回调用结果
-     */
-    template<typename R>
-    Result<R> recvResponse() {
-        SocketStream::ptr stream = std::make_shared<SocketStream>(m_socket, false);
-        Result<R> val;
-        constexpr int LengthSize = 4;
-
-        ByteArray::ptr byteArray = std::make_shared<ByteArray>();
-
-        if (stream->readFixSize(byteArray, LengthSize) <= 0) {
-            val.setCode(RPC_CLOSED);
-            val.setMsg("socket closed");
-            return val;
-        }
-        byteArray->setPosition(0);
-        int length = byteArray->readFint32();
-        byteArray->clear();
-
-        if (stream->readFixSize(byteArray, length) < 0) {
+        Protocol::ptr response = recvResponse();
+        if (!response) {
             if (errno == ETIMEDOUT) {
                 // 超时
                 val.setCode(RPC_TIMEOUT);
@@ -144,12 +114,48 @@ private:
             return val;
         }
 
-        byteArray->setPosition(0);
-
-        Serializer::ptr serializer = std::make_shared<Serializer>(byteArray);
-
-        (*serializer) >> val;
+        Serializer serializer(response->getContent());
+        serializer >> val;
         return val;
+    }
+    /**
+     * @brief 发起网络请求
+     * @param[in] p 请求协议
+     * @return 返回调用是否成功
+     */
+    bool sendRequest(Protocol::ptr p) {
+        SocketStream::ptr stream = std::make_shared<SocketStream>(m_socket, false);
+        ByteArray::ptr bt = p->encode();
+        if (stream->writeFixSize(bt, bt->getSize()) < 0) {
+            return false;
+        }
+        return true;
+    }
+    /**
+     * @brief 接受网络响应
+     * @return 返回响应协议
+     */
+    Protocol::ptr recvResponse() {
+        SocketStream::ptr stream = std::make_shared<SocketStream>(m_socket, false);
+        Protocol::ptr response = std::make_shared<Protocol>();
+
+        ByteArray::ptr byteArray = std::make_shared<ByteArray>();
+
+        if (stream->readFixSize(byteArray, response->BASE_LENGTH) <= 0) {
+            return nullptr;
+        }
+
+        byteArray->setPosition(0);
+        response->decodeMeta(byteArray);
+
+        std::string buff;
+        buff.resize(response->getContentLength());
+
+        if (stream->readFixSize(&buff[0], buff.size()) <= 0) {
+            return nullptr;
+        }
+        response->setContent(std::move(buff));
+        return response;
     }
 
 private:
@@ -157,6 +163,10 @@ private:
     uint64_t m_timeout = -1;
     /// 服务器的连接
     Socket::ptr m_socket;
+};
+
+class RpcConnectionPool {
+
 };
 
 }

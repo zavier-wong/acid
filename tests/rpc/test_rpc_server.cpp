@@ -19,6 +19,9 @@ int main() {
         server->registerMethod("add",add);
         server->registerMethod("getStr",getStr);
         server->registerMethod("bind", std::function<int(int,int)>(add));
+        server->registerMethod("sleep",[](){
+            sleep(100);
+        });
         server->registerMethod("lambda",[str]()->std::string{
             return str;
         });

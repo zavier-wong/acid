@@ -10,6 +10,7 @@
 #include "acid/net/tcp_server.h"
 #include "acid/log.h"
 #include "acid/traits.h"
+#include "protocol.h"
 #include "rpc.h"
 namespace acid::rpc {
 /**
@@ -39,18 +40,18 @@ public:
     void setName(const std::string& name) override;
 protected:
     /**
-     * @brief 接受RPC客户端请求并序列化返回
+     * @brief 接受 RPC 客户端请求
      * @param[in] client 客户端
      * @param[in] func 注册的函数
-     * @return 序列化的客户端请求
+     * @return 客户端请求协议
      */
-    Serializer::ptr recvRequest(SocketStream::ptr client);
+    Protocol::ptr recvRequest(SocketStream::ptr client);
     /**
-     * @brief 返回客户端请求结果
+     * @brief 发送客户端协议
      * @param[in] client 客户端
-     * @param[in] s 序列化结果
+     * @param[in] p 发送协议
      */
-    void sendResponse(SocketStream::ptr client, Serializer::ptr s);
+    void sendResponse(SocketStream::ptr client, Protocol::ptr p);
     /**
      * @brief 调用服务端注册的函数，返回序列化完的结果
      * @param[in] name 函数名
@@ -58,11 +59,7 @@ protected:
      * @return 函数调用的序列化结果
      */
     Serializer::ptr call(const std::string& name, const std::string& arg);
-    /**
-     * @brief 处理客户端请求
-     * @param[in] client 客户端套接字
-     */
-    void handleClient(Socket::ptr client) override;
+
     /**
      * @brief 调用代理
      * @param[in] fun 函数
@@ -88,7 +85,13 @@ protected:
         val.setVal(r);
         (*serializer) << val;
     }
-
+    /**
+     * @brief 处理客户端请求
+     * @param[in] client 客户端套接字
+     */
+    void handleClient(Socket::ptr client) override;
+    Protocol::ptr handleRequest(Protocol::ptr p);
+    Protocol::ptr handleMethodCall(Protocol::ptr p);
 private:
     /// 保存注册的函数
     std::map<std::string, std::function<void(Serializer::ptr, const std::string&)>> m_handlers;

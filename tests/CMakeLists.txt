@@ -79,9 +79,5 @@ acid_add_executable(test_rpc_server rpc/test_rpc_server.cpp acid ${LIBS})
 #test_rpc_client
 acid_add_executable(test_rpc_client rpc/test_rpc_client.cpp acid ${LIBS})
 
-#tmp
-acid_add_executable(tmp tmp.cpp acid ${LIBS})
-
-
 #set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)

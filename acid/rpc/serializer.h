@@ -12,12 +12,12 @@
 #include <tuple>
 #include <string.h>
 #include "acid/byte_array.h"
-
+#include "protocol.h"
 namespace acid::rpc {
 /**
  * @brief RPC 序列化 / 反序列化包装，会自动进行网络序转换
  * @details 序列化有以下规则：
- * 1.默认情况下序列化，8，16位类型以及浮点数不压缩，32，64位有符号/无符号数采用 zigzag 算法压缩
+ * 1.默认情况下序列化，8，16位类型以及浮点数不压缩，32，64位有符号/无符号数采用 zigzag 和 varints 编码压缩
  * 2.针对 std::string 会将长度信息压缩序列化作为元数据，然后将原数据直接写入。char数组会先转换成 std::string 后按此规则序列化
  * 3.调用 writeFint 将不会压缩数字，调用 writeRowData 不会加入长度信息
  */
@@ -88,12 +88,16 @@ public:
     void read(T& t) {
         if constexpr(std::is_same_v<T, float>){
             t = m_byteArray->readFloat();
-        } else if constexpr(std::is_same_v<T, float>){
+        } else if constexpr(std::is_same_v<T, double>){
             t = m_byteArray->readDouble();
-        } else if constexpr(sizeof(T) == sizeof(uint8_t)){
+        } else if constexpr(std::is_same_v<T, int8_t>){
             t = m_byteArray->readFint8();
-        } else if constexpr(sizeof(T) == sizeof(uint16_t)){
+        } else if constexpr(std::is_same_v<T, uint8_t>){
+            t = m_byteArray->readFuint8();
+        } else if constexpr(std::is_same_v<T, int16_t>){
             t = m_byteArray->readFint16();
+        } else if constexpr(std::is_same_v<T, uint16_t>){
+            t = m_byteArray->readFuint16();
         } else if constexpr(std::is_same_v<T, int32_t>){
             t = m_byteArray->readInt32();
         } else if constexpr(std::is_same_v<T, uint32_t>){
@@ -111,12 +115,16 @@ public:
     void write(T t) {
         if constexpr(std::is_same_v<T, float>){
             m_byteArray->writeFloat(t);
-        } else if constexpr(std::is_same_v<T, float>){
+        } else if constexpr(std::is_same_v<T, double>){
             m_byteArray->writeDouble(t);
-        } else if constexpr(sizeof(T) == sizeof(uint8_t)){
+        } else if constexpr(std::is_same_v<T, int8_t>){
             m_byteArray->writeFint8(t);
-        } else if constexpr(sizeof(T) == sizeof(uint16_t)){
+        } else if constexpr(std::is_same_v<T, uint8_t>){
+            m_byteArray->writeFuint8(t);
+        } else if constexpr(std::is_same_v<T, int16_t>){
             m_byteArray->writeFint16(t);
+        } else if constexpr(std::is_same_v<T, uint16_t>){
+            m_byteArray->writeFuint16(t);
         } else if constexpr(std::is_same_v<T, int32_t>){
             m_byteArray->writeInt32(t);
         } else if constexpr(std::is_same_v<T, uint32_t>){
