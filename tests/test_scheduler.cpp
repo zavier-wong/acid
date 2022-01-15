@@ -42,15 +42,16 @@ void test3(){
     while(1);
     ACID_LOG_INFO(g_logger) << "over";
 }
-acid::Mutex mutex;
+
 void test_fiber_mutex(){
+    acid::Mutex m;
     //static int i=0;
     ACID_LOG_INFO(g_logger) << "start lock";
-    mutex.lock();
+    m.lock();
     ACID_LOG_INFO(g_logger) << "Yield";
     acid::Fiber::YieldToReady();
     ACID_LOG_INFO(g_logger) << "resume";
-    mutex.unlock();
+    m.unlock();
     ACID_LOG_INFO(g_logger) << "unlock";
 }
 
