@@ -29,7 +29,7 @@ public:
     uint64_t getSendTimeout() const { return m_sendTimeout;}
 
     void setRecvTimeout(uint64_t timeout) { m_sendTimeout = timeout;}
-    uint64_t getRecvTimeout() const { return m_sendTimeout;}
+    uint64_t getRecvTimeout() const { return m_recvTimeout;}
 
     void setTimeout(int type, uint64_t timeout);
     uint64_t getTimeout(int type) const ;
