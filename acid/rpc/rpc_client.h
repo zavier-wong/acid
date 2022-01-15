@@ -11,6 +11,7 @@
 #include "acid/net/socket.h"
 #include "acid/net/socket_stream.h"
 #include "protocol.h"
+#include "route_strategy.h"
 #include "rpc.h"
 namespace acid::rpc {
 /**
@@ -79,6 +80,14 @@ public:
             promise->set_value(task());
         });
         return promise->get_future();
+    }
+
+    template<typename R>
+    Result<R> subscribe(const std::string& name, std::function<void(const std::string&)> callback) {
+        Serializer::ptr s = std::make_shared<Serializer>();
+        (*s) << name;
+        s->reset();
+        return call<R>(s);
     }
 private:
     /**
