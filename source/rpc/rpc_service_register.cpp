@@ -102,7 +102,7 @@ void RpcServiceRegistry::handleUnregisterService(Socket::ptr sock) {
     for (auto& i: its) {
         m_services.erase(i);
     }
-    
+
 }
 
 Protocol::ptr RpcServiceRegistry::handleDiscoverService(Protocol::ptr p) {
