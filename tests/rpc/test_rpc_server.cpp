@@ -14,8 +14,10 @@ int main() {
     acid::IOManager::ptr ioManager(new acid::IOManager{4});
     ioManager->submit([]{
         std::string str = "lambda";
-        acid::Address::ptr address = acid::Address::LookupAny("0.0.0.0:8081");
+        acid::Address::ptr address = acid::Address::LookupAny("0.0.0.0:8080");
+        acid::Address::ptr registry = acid::Address::LookupAny("0.0.0.0:8070");
         acid::rpc::RpcServer::ptr server(new acid::rpc::RpcServer());
+        server->bindRegistry(registry);
         server->registerMethod("add",add);
         server->registerMethod("getStr",getStr);
         server->registerMethod("bind", std::function<int(int,int)>(add));

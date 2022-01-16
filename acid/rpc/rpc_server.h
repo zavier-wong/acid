@@ -13,6 +13,47 @@
 #include "protocol.h"
 #include "rpc.h"
 namespace acid::rpc {
+
+/**
+ * @brief 调用帮助类，展开 tuple 转发给函数
+ * @param[in] func 调用的函数
+ * @param[in] args 打包为 tuple 的函数参数
+ * @param[in] index 编译期辅助展开 tuple
+ * @return 返回函数调用结果
+ */
+template<typename Function, typename Tuple, std::size_t... Index>
+auto invoke_impl(Function&& func, Tuple&& args, std::index_sequence<Index...>)
+{
+    return func(std::get<Index>(std::forward<Tuple>(args))...);
+}
+/**
+ * @brief 调用帮助类
+ * @param[in] func 调用的函数
+ * @param[in] args 打包为 tuple 的函数参数
+ * @return 返回函数调用结果
+ */
+template<typename Function, typename Tuple>
+auto invoke(Function&& func, Tuple&& args)
+{
+    constexpr auto size = std::tuple_size<typename std::decay<Tuple>::type>::value;
+    return invoke_impl(std::forward<Function>(func), std::forward<Tuple>(args), std::make_index_sequence<size>{});
+}
+/**
+ * @brief 调用帮助类，判断返回类型，如果是 void 转换为 int8_t
+ * @param[in] f 调用的函数
+ * @param[in] args 打包为 tuple 的函数参数
+ * @return 返回函数调用结果
+ */
+template<typename R, typename F, typename ArgsTuple>
+auto call_helper(F f, ArgsTuple args) {
+    if constexpr(std::is_same_v<R, void>) {
+        invoke(f, args);
+        return 0;
+    } else {
+        return invoke(f, args);
+    }
+}
+
 /**
  * @brief RPC服务端
  */
@@ -21,7 +62,7 @@ public:
     using ptr = std::shared_ptr<RpcServer>;
     RpcServer(IOManager* worker = IOManager::GetThis(),
                IOManager* accept_worker = IOManager::GetThis());
-
+    bool bindRegistry(Address::ptr address);
     /**
      * @brief 注册函数
      * @param[in] name 注册的函数名
@@ -32,6 +73,7 @@ public:
         m_handlers[name] = [func, this](Serializer::ptr serializer, const std::string& arg) {
             proxy(func, serializer, arg);
         };
+        registerService(name);
     }
     /**
      * @brief 设置RPC服务器名称
@@ -42,16 +84,20 @@ protected:
     /**
      * @brief 接受 RPC 客户端请求
      * @param[in] client 客户端
-     * @param[in] func 注册的函数
      * @return 客户端请求协议
      */
-    Protocol::ptr recvRequest(SocketStream::ptr client);
+    Protocol::ptr recvProtocol(Socket::ptr client);
     /**
      * @brief 发送客户端协议
      * @param[in] client 客户端
      * @param[in] p 发送协议
      */
-    void sendResponse(SocketStream::ptr client, Protocol::ptr p);
+    void sendProtocol(Socket::ptr client, Protocol::ptr p);
+    /**
+     * @brief 向服务注册中心发起注册
+     * @param[in] name 注册的函数名
+     */
+    void registerService(const std::string& name);
     /**
      * @brief 调用服务端注册的函数，返回序列化完的结果
      * @param[in] name 函数名
@@ -90,11 +136,12 @@ protected:
      * @param[in] client 客户端套接字
      */
     void handleClient(Socket::ptr client) override;
-    Protocol::ptr handleRequest(Protocol::ptr p);
+    Protocol::ptr handleProtocol(Protocol::ptr p);
     Protocol::ptr handleMethodCall(Protocol::ptr p);
 private:
     /// 保存注册的函数
     std::map<std::string, std::function<void(Serializer::ptr, const std::string&)>> m_handlers;
+    Socket::ptr m_registry;
 };
 
 }
