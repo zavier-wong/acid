@@ -5,6 +5,7 @@
 #include "error.h"
 #include <fcntl.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/epoll.h>
 #include <unistd.h>
 #include "acid/io_manager.h"
@@ -54,6 +55,8 @@ void IOManager::FdContext::triggerEvent(IOManager::Event event) {
 
 
 IOManager::IOManager(size_t threads, const std::string &name) : Scheduler(threads, name) {
+
+    signal(SIGPIPE, SIG_IGN);
 
     int rt = pipe(m_tickleFds);
     ACID_ASSERT(!rt);

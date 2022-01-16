@@ -31,6 +31,7 @@ set(LIB_SRC
         net/uri.cpp
 
         rpc/rpc_server.cpp
+        rpc/rpc_service_register.cpp
 
         scheduler.cpp
         stream.cpp
