@@ -5,9 +5,8 @@
 #ifndef ACID_PROTOCOL_H
 #define ACID_PROTOCOL_H
 #include <memory>
-#include "acid/rpc/serializer.h"
+#include "acid/byte_array.h"
 namespace acid::rpc {
-class Serializer;
 /*
  * 私有通信协议
  * +--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
@@ -29,8 +28,17 @@ public:
     static constexpr uint8_t BASE_LENGTH = 7;
 
     enum class MsgType : uint8_t {
-        RPC_METHOD_REQUEST = 0,
-        RPC_METHOD_RESPONSE,
+        RPC_REQUEST = 0,        // 通用请求
+        RPC_RESPONSE,           // 通用响应
+
+        RPC_METHOD_REQUEST ,    // 请求方法调用
+        RPC_METHOD_RESPONSE,    // 响应方法调用
+
+        RPC_SERVICE_REGISTER,   // 向中心注册服务
+        RPC_SERVICE_REGISTER_RESPONSE,
+
+        RPC_SERVICE_DISCOVER,   // 向中心请求服务发现
+        RPC_SERVICE_DISCOVER_RESPONSE
     };
 
     uint8_t getMagic() const { return m_magic;}
@@ -47,9 +55,9 @@ public:
 
     ByteArray::ptr encodeMeta() {
         ByteArray::ptr bt = std::make_shared<ByteArray>();
-        bt->writeFint(m_magic);
-        bt->writeFint(m_version);
-        bt->writeFint(m_type);
+        bt->writeFuint8(m_magic);
+        bt->writeFuint8(m_version);
+        bt->writeFuint8(m_type);
         bt->writeStringF32(m_content);
         bt->setPosition(0);
         return bt;
@@ -57,9 +65,9 @@ public:
 
     ByteArray::ptr encode() {
         ByteArray::ptr bt = std::make_shared<ByteArray>();
-        bt->writeFint(m_magic);
-        bt->writeFint(m_version);
-        bt->writeFint(m_type);
+        bt->writeFuint8(m_magic);
+        bt->writeFuint8(m_version);
+        bt->writeFuint8(m_type);
         bt->writeStringF32(m_content);
         bt->setPosition(0);
         return bt;

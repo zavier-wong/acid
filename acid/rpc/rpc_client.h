@@ -14,6 +14,25 @@
 #include "route_strategy.h"
 #include "rpc.h"
 namespace acid::rpc {
+
+/**
+ * @brief 实际的序列化函数，利用折叠表达式展开参数包
+ */
+template<typename Tuple, std::size_t... Index>
+void package_params_impl(Serializer& ds, const Tuple& t, std::index_sequence<Index...>)
+{
+    (ds << ... << std::get<Index>(t));
+}
+
+/**
+ * @brief 将被打包为 tuple 的函数参数进行序列化
+ */
+template<typename... Args>
+void package_params(Serializer& ds, const std::tuple<Args...>& t)
+{
+    package_params_impl(ds, t, std::index_sequence_for<Args...>{});
+}
+
 /**
  * @brief RPC客户端
  */

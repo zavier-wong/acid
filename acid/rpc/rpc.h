@@ -26,68 +26,13 @@ struct return_type<void>{ typedef int8_t type; };
 template<typename T>
 using return_type_t = typename return_type<T>::type;
 
-/**
- * @brief 实际的序列化函数，利用折叠表达式展开参数包
- */
-template<typename Tuple, std::size_t... Index>
-void package_params_impl(Serializer& ds, const Tuple& t, std::index_sequence<Index...>)
-{
-    (ds << ... << std::get<Index>(t));
-}
-
-/**
- * @brief 将被打包为 tuple 的函数参数进行序列化
- */
-template<typename... Args>
-void package_params(Serializer& ds, const std::tuple<Args...>& t)
-{
-    package_params_impl(ds, t, std::index_sequence_for<Args...>{});
-}
-/**
- * @brief 调用帮助类，展开 tuple 转发给函数
- * @param[in] func 调用的函数
- * @param[in] args 打包为 tuple 的函数参数
- * @param[in] index 编译期辅助展开 tuple
- * @return 返回函数调用结果
- */
-template<typename Function, typename Tuple, std::size_t... Index>
-auto invoke_impl(Function&& func, Tuple&& args, std::index_sequence<Index...>)
-{
-    return func(std::get<Index>(std::forward<Tuple>(args))...);
-}
-/**
- * @brief 调用帮助类
- * @param[in] func 调用的函数
- * @param[in] args 打包为 tuple 的函数参数
- * @return 返回函数调用结果
- */
-template<typename Function, typename Tuple>
-auto invoke(Function&& func, Tuple&& args)
-{
-    constexpr auto size = std::tuple_size<typename std::decay<Tuple>::type>::value;
-    return invoke_impl(std::forward<Function>(func), std::forward<Tuple>(args), std::make_index_sequence<size>{});
-}
-/**
- * @brief 调用帮助类，判断返回类型，如果是 void 转换为 int8_t
- * @param[in] f 调用的函数
- * @param[in] args 打包为 tuple 的函数参数
- * @return 返回函数调用结果
- */
-template<typename R, typename F, typename ArgsTuple>
-auto call_helper(F f, ArgsTuple args) {
-    if constexpr(std::is_same_v<R, void>) {
-        invoke(f, args);
-        return 0;
-    } else {
-        return invoke(f, args);
-    }
-}
 
 /**
  * @brief RPC调用状态
  */
 enum RpcState{
-    RPC_SUCCESS = 0,    // 成功调用
+    RPC_SUCCESS = 0,    // 成功
+    RPC_FAIL,           // 失败
     RPC_NO_METHOD,      // 没有找到调用函数
     RPC_CLOSED,         // RPC 连接被关闭
     RPC_TIMEOUT         // RPC 调用超时
@@ -102,6 +47,19 @@ public:
     using type = return_type_t<T>;
     using msg_type = std::string;
     using code_type = uint16_t;
+
+    static Result<T> Success() {
+        Result<T> res;
+        res.setCode(RPC_SUCCESS);
+        res.setMsg("success");
+        return res;
+    }
+    static Result<T> Fail() {
+        Result<T> res;
+        res.setCode(RPC_FAIL);
+        res.setMsg("fail");
+        return res;
+    }
 
     Result() {}
 
