@@ -34,7 +34,6 @@ public:
 protected:
     virtual void startAccept(Socket::ptr sock);
     virtual void handleClient(Socket::ptr client);
-private:
     /// 监听socket队列
     std::vector<Socket::ptr> m_listens;
     IOManager* m_worker;
