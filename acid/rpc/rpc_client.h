@@ -108,6 +108,10 @@ public:
         s->reset();
         return call<R>(s);
     }
+
+    Socket::ptr getSocket() {
+        return m_socket;
+    }
 private:
     /**
      * @brief 实际调用
@@ -123,6 +127,7 @@ private:
             return val;
         }
         Protocol::ptr request = std::make_shared<Protocol>();
+        request->setMsgType(Protocol::MsgType::RPC_METHOD_REQUEST);
         request->setContent(s->toString());
         if (!sendRequest(request)) {
             val.setCode(RPC_CLOSED);
@@ -141,9 +146,15 @@ private:
             }
             return val;
         }
+        if (response->getContent().empty()) {
+            val.setCode(RPC_NO_METHOD);
+            val.setMsg("Method not find");
+            return val;
+        }
 
         Serializer serializer(response->getContent());
         serializer >> val;
+
         return val;
     }
     /**
@@ -176,6 +187,10 @@ private:
         byteArray->setPosition(0);
         response->decodeMeta(byteArray);
 
+        if (!response->getContentLength()) {
+            return response;
+        }
+
         std::string buff;
         buff.resize(response->getContentLength());
 
@@ -193,9 +208,6 @@ private:
     Socket::ptr m_socket;
 };
 
-class RpcConnectionPool {
-
-};
 
 }
 #endif //ACID_RPC_CLIENT_H
