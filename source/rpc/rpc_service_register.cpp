@@ -23,6 +23,9 @@ Protocol::ptr RpcServiceRegistry::recvRequest(Socket::ptr client) {
     }
     byteArray->setPosition(0);
     proto->decodeMeta(byteArray);
+    if (proto->getContentLength() == 0) {
+        return proto;
+    }
 
     std::string buff;
     buff.resize(proto->getContentLength());
@@ -43,35 +46,60 @@ void RpcServiceRegistry::sendResponse(Socket::ptr client, Protocol::ptr p) {
 void RpcServiceRegistry::handleClient(Socket::ptr client) {
     ACID_LOG_DEBUG(g_logger) << "handleClient: " << client->toString();
 
+    Address::ptr providerAddr;
     while (true) {
         Protocol::ptr request = recvRequest(client);
         if (!request) {
-            handleUnregisterService(client);
-            break;
+            if (providerAddr) {
+                ACID_LOG_WARN(g_logger) << client->toString() << " was closed; unregister " << providerAddr->toString();
+                handleUnregisterService(providerAddr);
+            }
+            return;
         }
-        Protocol::ptr response = handleRequest(request, client);
-        if (!request) {
-            break;
+        Protocol::ptr response;
+
+        Protocol::MsgType type = request->getMsgType();
+        switch (type) {
+            case Protocol::MsgType::HEARTBEAT_PACKET:
+                response = handleHeartbeatPacket(request);
+                break;
+            case Protocol::MsgType::RPC_PROVIDER:
+                ACID_LOG_DEBUG(g_logger) << client->toString();
+                providerAddr = handleProvider(request, client);
+                continue;
+            case Protocol::MsgType::RPC_SERVICE_REGISTER:
+                response = handleRegisterService(request, providerAddr);
+                break;
+            case Protocol::MsgType::RPC_SERVICE_DISCOVER:
+                response = handleDiscoverService(request);
+                break;
+            default:
+                ACID_LOG_WARN(g_logger) << "protocol:" << request->toString();
+                continue;
         }
+
         sendResponse(client, response);
     }
 }
 
-Protocol::ptr RpcServiceRegistry::handleRequest(Protocol::ptr p, Socket::ptr client) {
-    Protocol::MsgType type = p->getMsgType();
-    switch (type) {
-        case Protocol::MsgType::RPC_SERVICE_REGISTER:
-            return handleRegisterService(p, client);
-        case Protocol::MsgType::RPC_SERVICE_DISCOVER:
-            return handleDiscoverService(p);
-        default:
-            break;
-    }
-
-    return nullptr;
+Protocol::ptr RpcServiceRegistry::handleHeartbeatPacket(Protocol::ptr p) {
+    static Protocol::ptr Heartbeat = std::make_shared<Protocol>();
+    Heartbeat->setMsgType(Protocol::MsgType::HEARTBEAT_PACKET);
+    return Heartbeat;
 }
-Protocol::ptr RpcServiceRegistry::handleRegisterService(Protocol::ptr p, Socket::ptr client) {
-    std::string serviceAddress = client->getRemoteAddress()->toString();
+
+Address::ptr RpcServiceRegistry::handleProvider(Protocol::ptr p, Socket::ptr sock){
+    uint32_t port = 0;
+    Serializer s(p->getContent());
+    s.reset();
+    s >> port;
+    IPv4Address::ptr address(new IPv4Address(*std::dynamic_pointer_cast<IPv4Address>(sock->getRemoteAddress())));
+    address->setPort(port);
+    return address;
+}
+
+Protocol::ptr RpcServiceRegistry::handleRegisterService(Protocol::ptr p, Address::ptr address) {
+    std::string serviceAddress = address->toString();
     std::string serviceName = p->getContent();
 
     RWMutexType::WriteLock lock(m_mutex);
@@ -92,9 +120,9 @@ Protocol::ptr RpcServiceRegistry::handleRegisterService(Protocol::ptr p, Socket:
     return proto;
 }
 
-void RpcServiceRegistry::handleUnregisterService(Socket::ptr sock) {
+void RpcServiceRegistry::handleUnregisterService(Address::ptr address) {
     RWMutexType::WriteLock lock(m_mutex);
-    auto it = m_iters.find(sock->toString());
+    auto it = m_iters.find(address->toString());
     if (it == m_iters.end()) {
         return;
     }
@@ -102,12 +130,12 @@ void RpcServiceRegistry::handleUnregisterService(Socket::ptr sock) {
     for (auto& i: its) {
         m_services.erase(i);
     }
-
+    m_iters.erase(address->toString());
 }
 
 Protocol::ptr RpcServiceRegistry::handleDiscoverService(Protocol::ptr p) {
     std::string serviceName = p->getContent();
-    Result<std::string> result;
+    std::vector<Result<std::string>> result;
     ByteArray byteArray;
     Protocol::ptr proto = std::make_shared<Protocol>();
     proto->setMsgType(Protocol::MsgType::RPC_SERVICE_DISCOVER_RESPONSE);
@@ -115,20 +143,30 @@ Protocol::ptr RpcServiceRegistry::handleDiscoverService(Protocol::ptr p) {
     RWMutexType::ReadLock lock(m_mutex);
     m_services.equal_range(serviceName);
     auto range = m_services.equal_range(serviceName);
-
-    for (auto i = range.first; i != range.second; ++i) {
-        byteArray.writeStringVint(i->second);
-    }
-    if (byteArray.getSize() == 0) {
-        result = Result<std::string>::Fail();
+    uint32_t cnt = 0;
+    // 未注册服务
+    if (range.first == range.second) {
+        cnt++;
+        Result<std::string> res;
+        res.setCode(RPC_NO_METHOD);
+        res.setMsg("discover service:" + serviceName);
+        result.push_back(res);
     } else {
-        byteArray.setPosition(0);
-        result.setCode(RPC_SUCCESS);
-        result.setMsg("discover service:" + serviceName);
-        result.setVal(byteArray.toString());
+        for (auto i = range.first; i != range.second; ++i) {
+            Result<std::string> res;
+            std::string addr;
+            res.setCode(RPC_SUCCESS);
+            res.setVal(i->second);
+            result.push_back(res);
+        }
+        cnt = result.size();
     }
+
     Serializer s;
-    s << result;
+    s << cnt;
+    for (uint32_t i = 0; i < cnt; ++i) {
+        s << result[i];
+    }
     s.reset();
     proto->setContent(s.toString());
     return proto;

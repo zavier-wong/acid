@@ -10,6 +10,10 @@ RpcServer::RpcServer(IOManager *worker, IOManager *accept_worker)
         : TcpServer(worker, accept_worker) {
 
 }
+bool RpcServer::bind(Address::ptr address) {
+    m_port = std::dynamic_pointer_cast<IPv4Address>(address)->getPort();
+    return TcpServer::bind(address);
+}
 
 void RpcServer::setName(const std::string &name) {
     TcpServer::setName(name);
@@ -20,8 +24,22 @@ bool RpcServer::bindRegistry(Address::ptr address) {
     if (!m_registry) {
         return false;
     }
+    Serializer s;
+    s << m_port;
+    s.reset();
 
-    return m_registry->connect(address);
+    if (!m_registry->connect(address)) {
+        ACID_LOG_WARN(g_logger) << "can't connect to registry";
+        m_registry = nullptr;
+        return false;
+    }
+    // 向服务中心声明为provider，注册服务端口
+    Protocol::ptr proto = std::make_shared<Protocol>();
+    proto->setMsgType(Protocol::MsgType::RPC_PROVIDER);
+    proto->setContent(s.toString());
+    sendProtocol(m_registry, proto);
+
+    return true;
 }
 
 Protocol::ptr RpcServer::recvProtocol(Socket::ptr client) {
@@ -33,6 +51,10 @@ Protocol::ptr RpcServer::recvProtocol(Socket::ptr client) {
     }
     byteArray->setPosition(0);
     proto->decodeMeta(byteArray);
+
+    if (!proto->getContentLength()) {
+        return proto;
+    }
 
     std::string buff;
     buff.resize(proto->getContentLength());
@@ -50,6 +72,57 @@ void RpcServer::sendProtocol(Socket::ptr client, Protocol::ptr p) {
     stream->writeFixSize(byteArray, byteArray->getSize());
 }
 
+bool RpcServer::start() {
+    if (m_registry) {
+        for(auto& item: m_handlers) {
+            registerService(item.first);
+        }
+        auto self = shared_from_this();
+        // 服务中心心跳定时器 20s
+        m_registry->setRecvTimeout(20'000);
+        m_heartTimer = m_worker->addTimer(20'000, [self]{
+            ACID_LOG_DEBUG(g_logger) << "heart beat";
+            auto server = std::dynamic_pointer_cast<RpcServer>(self);
+            Protocol::ptr proto = std::make_shared<Protocol>();
+            proto->setMsgType(Protocol::MsgType::HEARTBEAT_PACKET);
+            server->sendProtocol(server->m_registry, proto);
+            Protocol::ptr response = server->recvProtocol(server->m_registry);
+            //ACID_LOG_DEBUG(g_logger) << response->toString();
+            if (!response) {
+                ACID_LOG_WARN(g_logger) << "Registry close";
+                //server->stop();
+                //放弃服务中心，独自提供服务
+                server->m_heartTimer->cancel();
+            }
+        }, true);
+    }
+    return TcpServer::start();
+}
+void RpcServer::handleRegistry() {
+    ACID_LOG_DEBUG(g_logger) << "handleRegistry: " << m_registry->toString();
+    while (true) {
+        Protocol::ptr request = recvProtocol(m_registry);
+        if (!request) {
+            break;
+        }
+        Protocol::ptr response;
+
+        Protocol::MsgType type = request->getMsgType();
+        switch (type) {
+            case Protocol::MsgType::HEARTBEAT_PACKET:
+                response = handleHeartbeatPacket(request);
+                break;
+            default:
+                ACID_LOG_DEBUG(g_logger) << "protocol:" << request->toString();
+                break;
+        }
+
+        if (!response) {
+            break;
+        }
+        sendProtocol(m_registry, response);
+    }
+}
 void RpcServer::handleClient(Socket::ptr client) {
     ACID_LOG_DEBUG(g_logger) << "handleClient: " << client->toString();
 
@@ -58,8 +131,19 @@ void RpcServer::handleClient(Socket::ptr client) {
         if (!request) {
             break;
         }
-        Protocol::ptr response = handleProtocol(request);
-        if (!request) {
+        Protocol::ptr response;
+
+        Protocol::MsgType type = request->getMsgType();
+        switch (type) {
+            case Protocol::MsgType::RPC_METHOD_REQUEST:
+                response = handleMethodCall(request);
+                break;
+            default:
+                ACID_LOG_DEBUG(g_logger) << "protocol:" << request->toString();
+                break;
+        }
+
+        if (!response) {
             break;
         }
         sendProtocol(client, response);
@@ -69,29 +153,12 @@ void RpcServer::handleClient(Socket::ptr client) {
 Serializer::ptr RpcServer::call(const std::string &name, const std::string& arg) {
     Serializer::ptr serializer = std::make_shared<Serializer>();
     if (m_handlers.find(name) == m_handlers.end()) {
-        (*serializer) << Result<>::code_type(RPC_NO_METHOD);
-        (*serializer) << Result<>::msg_type("function not bind: " + name);
         return serializer;
     }
     auto fun = m_handlers[name];
     fun(serializer, arg);
     serializer->reset();
     return serializer;
-}
-
-
-Protocol::ptr RpcServer::handleProtocol(Protocol::ptr p) {
-    Protocol::MsgType type = p->getMsgType();
-    switch (type) {
-        case Protocol::MsgType::RPC_METHOD_REQUEST:
-            return handleMethodCall(p);
-        case Protocol::MsgType::RPC_SERVICE_REGISTER:
-            break;
-        default:
-            break;
-    }
-
-    return nullptr;
 }
 
 Protocol::ptr RpcServer::handleMethodCall(Protocol::ptr p) {
@@ -124,7 +191,13 @@ void RpcServer::registerService(const std::string &name) {
     if (result.getCode() != RPC_SUCCESS) {
         ACID_LOG_WARN(g_logger) << result.toString();
     }
-    ACID_LOG_DEBUG(g_logger) << result.toString();
+    ACID_LOG_INFO(g_logger) << result.toString();
+}
+
+Protocol::ptr RpcServer::handleHeartbeatPacket(Protocol::ptr p) {
+    static Protocol::ptr Heartbeat = std::make_shared<Protocol>();
+    Heartbeat->setMsgType(Protocol::MsgType::HEARTBEAT_PACKET);
+    return Heartbeat;
 }
 
 

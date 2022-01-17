@@ -62,7 +62,9 @@ public:
     using ptr = std::shared_ptr<RpcServer>;
     RpcServer(IOManager* worker = IOManager::GetThis(),
                IOManager* accept_worker = IOManager::GetThis());
+    bool bind(Address::ptr address) override;
     bool bindRegistry(Address::ptr address);
+    bool start() override;
     /**
      * @brief 注册函数
      * @param[in] name 注册的函数名
@@ -73,7 +75,6 @@ public:
         m_handlers[name] = [func, this](Serializer::ptr serializer, const std::string& arg) {
             proxy(func, serializer, arg);
         };
-        registerService(name);
     }
     /**
      * @brief 设置RPC服务器名称
@@ -136,12 +137,24 @@ protected:
      * @param[in] client 客户端套接字
      */
     void handleClient(Socket::ptr client) override;
-    Protocol::ptr handleProtocol(Protocol::ptr p);
+    /**
+     * @brief 处理服务中心请求
+     */
+    void handleRegistry();
     Protocol::ptr handleMethodCall(Protocol::ptr p);
+    /**
+     * 处理心跳包
+     */
+    Protocol::ptr handleHeartbeatPacket(Protocol::ptr p);
 private:
     /// 保存注册的函数
     std::map<std::string, std::function<void(Serializer::ptr, const std::string&)>> m_handlers;
+    /// 服务中心连接
     Socket::ptr m_registry;
+    /// 服务中心心跳定时器
+    Timer::ptr m_heartTimer;
+    /// 开放服务端口
+    uint32_t m_port;
 };
 
 }

@@ -54,13 +54,7 @@ protected:
      * @param[in] client 用户套接字
      */
     void handleClient(Socket::ptr client) override;
-    /**
-     * 处理请求
-     * @param p 请求协议
-     * @param client 用户套接字
-     * @return 返回结果
-     */
-    Protocol::ptr handleRequest(Protocol::ptr p, Socket::ptr client);
+
     /**
      * 为服务端提供服务注册
      * 将服务地址注册到对应服务名下
@@ -68,13 +62,13 @@ protected:
      * @param serviceName 服务名称
      * @param serviceAddress 服务地址
      */
-    Protocol::ptr handleRegisterService(Protocol::ptr p, Socket::ptr client);
+    Protocol::ptr handleRegisterService(Protocol::ptr p, Address::ptr address);
 
     /**
      * 移除注册服务
      * @param sock 移除的服务地址
      */
-    void handleUnregisterService(Socket::ptr sock);
+    void handleUnregisterService(Address::ptr address);
 
     /**
      * 为客户端提供服务发现
@@ -82,7 +76,17 @@ protected:
      * @return 服务地址列表
      */
     Protocol::ptr handleDiscoverService(Protocol::ptr p);
+    /**
+     * 处理 provider 初次连接时的事件，获取开放服务的端口
+     * @param serviceName 服务名称
+     * @return 服务地址列表
+     */
+    Address::ptr handleProvider(Protocol::ptr p, Socket::ptr sock);
 
+    /**
+     * 处理心跳包
+     */
+    Protocol::ptr handleHeartbeatPacket(Protocol::ptr p);
 private:
     /**
      * 维护服务名和服务地址列表的多重映射
