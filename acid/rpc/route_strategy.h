@@ -14,7 +14,6 @@
 
 #include <memory>
 #include <mutex>
-#include <random>
 #include <vector>
 
 namespace acid::rpc {
@@ -50,9 +49,8 @@ namespace impl {
     class RandomRouteStrategyImpl : public RouteStrategy<T> {
     public:
         T& select(std::vector<T>& list) {
-            std::random_device rd;
-            std::uniform_int_distribution<int> dist(0, list.size());
-            return list[dist(rd)];
+            srand((unsigned)time(NULL));
+            return list[rand() % list.size()];
         }
     };
     /**
