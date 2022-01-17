@@ -28,7 +28,11 @@ public:
     static constexpr uint8_t BASE_LENGTH = 7;
 
     enum class MsgType : uint8_t {
-        RPC_REQUEST = 0,        // 通用请求
+        HEARTBEAT_PACKET,       // 心跳包
+        RPC_PROVIDER,           // 向服务中心声明为provider
+        RPC_CONSUMER,           // 向服务中心声明为consumer
+
+        RPC_REQUEST,            // 通用请求
         RPC_RESPONSE,           // 通用响应
 
         RPC_METHOD_REQUEST ,    // 请求方法调用
@@ -101,8 +105,8 @@ public:
 private:
     uint8_t m_magic = MAGIC;
     uint8_t m_version = DEFAULT_VERSION;
-    uint8_t m_type;
-    uint32_t m_content_length;
+    uint8_t m_type = 0;
+    uint32_t m_content_length = 0;
     std::string m_content;
 };
 
