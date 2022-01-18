@@ -43,8 +43,25 @@ void RpcServiceRegistry::sendResponse(Socket::ptr client, Protocol::ptr p) {
     stream->writeFixSize(byteArray, byteArray->getSize());
 }
 
+void RpcServiceRegistry::update(Timer::ptr& heartTimer, Socket::ptr client) {
+    ACID_LOG_DEBUG(g_logger) << "update heart";
+    if (heartTimer) {
+        // 取消旧定时器
+        heartTimer->cancel();
+    }
+    // 更新定时器
+    heartTimer = m_worker->addTimer(m_AliveTime, [client]{
+        ACID_LOG_DEBUG(g_logger) << "client:" << client->toString() << " closed";
+        client->close();
+    });
+}
+
 void RpcServiceRegistry::handleClient(Socket::ptr client) {
     ACID_LOG_DEBUG(g_logger) << "handleClient: " << client->toString();
+
+    Timer::ptr heartTimer;
+    // 开启心跳定时器
+    update(heartTimer, client);
 
     Address::ptr providerAddr;
     while (true) {
@@ -56,9 +73,12 @@ void RpcServiceRegistry::handleClient(Socket::ptr client) {
             }
             return;
         }
-        Protocol::ptr response;
+        // 更新定时器
+        update(heartTimer, client);
 
+        Protocol::ptr response;
         Protocol::MsgType type = request->getMsgType();
+
         switch (type) {
             case Protocol::MsgType::HEARTBEAT_PACKET:
                 response = handleHeartbeatPacket(request);

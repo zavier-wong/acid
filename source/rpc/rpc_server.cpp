@@ -77,12 +77,11 @@ bool RpcServer::start() {
         for(auto& item: m_handlers) {
             registerService(item.first);
         }
-        auto self = shared_from_this();
-        // 服务中心心跳定时器 20s
-        m_registry->setRecvTimeout(20'000);
-        m_heartTimer = m_worker->addTimer(20'000, [self]{
+        auto server = std::dynamic_pointer_cast<RpcServer>(shared_from_this());
+        // 服务中心心跳定时器 30s
+        m_registry->setRecvTimeout(30'000);
+        m_heartTimer = m_worker->addTimer(30'000, [server]{
             ACID_LOG_DEBUG(g_logger) << "heart beat";
-            auto server = std::dynamic_pointer_cast<RpcServer>(self);
             Protocol::ptr proto = std::make_shared<Protocol>();
             proto->setMsgType(Protocol::MsgType::HEARTBEAT_PACKET);
             server->sendProtocol(server->m_registry, proto);

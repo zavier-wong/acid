@@ -35,6 +35,14 @@ public:
     }
 
 protected:
+
+    /**
+     * @brief 更新心跳定时器
+     * @param[in] heartTimer 心跳定时器
+     * @param[in] client 连接
+     */
+    void update(Timer::ptr& heartTimer, Socket::ptr client);
+
     /**
      * @brief 接收请求
      * @param[in] client 客户
@@ -98,6 +106,8 @@ private:
     // 维护服务地址到迭代器的映射
     std::map<std::string, std::vector<std::multimap<std::string, std::string>::iterator>> m_iters;
     RWMutexType m_mutex;
+    // 允许心跳超时的时间 默认 40s
+    uint64_t m_AliveTime = 40'000;
 };
 
 
