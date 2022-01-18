@@ -3,7 +3,7 @@
 //
 
 #include "acid/log.h"
-#include "acid/rpc/rpc_connection_poll.h"
+#include "acid/rpc/rpc_connection_pool.h"
 
 namespace acid::rpc {
 static Logger::ptr g_logger = ACID_LOG_NAME("system");

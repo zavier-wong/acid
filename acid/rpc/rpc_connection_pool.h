@@ -2,8 +2,8 @@
 // Created by zavier on 2022/1/16.
 //
 
-#ifndef ACID_RPC_CONNECTION_POLL_H
-#define ACID_RPC_CONNECTION_POLL_H
+#ifndef ACID_RPC_CONNECTION_POOL_H
+#define ACID_RPC_CONNECTION_POOL_H
 #include "acid/ds/lru_map.h"
 #include "acid/traits.h"
 #include "acid/mutex.h"
@@ -166,4 +166,4 @@ private:
 };
 
 }
-#endif //ACID_RPC_CONNECTION_POLL_H
+#endif //ACID_RPC_CONNECTION_POOL_H

@@ -2,7 +2,7 @@
 // Created by zavier on 2022/1/16.
 //
 
-#include "acid/rpc/rpc_connection_poll.h"
+#include "acid/rpc/rpc_connection_pool.h"
 #include "acid/log.h"
 static acid::Logger::ptr g_logger = ACID_LOG_ROOT();
 void test_discover() {
