@@ -5,99 +5,61 @@
 #ifndef ACID_RPC_CONNECTION_POLL_H
 #define ACID_RPC_CONNECTION_POLL_H
 #include "acid/ds/lru_map.h"
+#include "acid/traits.h"
+#include "acid/mutex.h"
 #include "route_strategy.h"
 #include "rpc_client.h"
 
 namespace acid::rpc {
 
-class RpcConnectionPool : std::enable_shared_from_this<RpcConnectionPool>{
+class RpcConnectionPool {
 public:
     using ptr = std::shared_ptr<RpcConnectionPool>;
-    using RWMutexType = RWMutex;
+    using MutexType = Mutex;
 
-    RpcConnectionPool(size_t capacity,uint64_t timeout_ms = -1)
-        : m_timeout(timeout_ms)
-        , m_conns(capacity){
-        m_registry = Socket::CreateTCPSocket();
-    }
-
+    RpcConnectionPool(size_t capacity,uint64_t timeout_ms = -1);
+    ~RpcConnectionPool();
     /**
      * @brief 连接 RPC 服务中心
      * @param[in] address 服务中心地址
      */
-    bool connect(Address::ptr address){
-        if (!m_registry->connect(address, m_timeout)) {
-            return false;
-        }
-        //Protocol::ptr proto = std::make_shared<Protocol>();
+    bool connect(Address::ptr address);
 
-        return true;
-    }
+    void stop();
 
-    void run() {
-        auto self = shared_from_this();
-        acid::IOManager::GetThis()->submit([self]{
+    /**
+     * @brief 异步远程过程调用回调模式
+     * @param[in] callback 回调函数
+     * @param[in] name 函数名
+     * @param[in] ps 可变参
+     */
+    template<typename R, typename... Params>
+    void async_call(std::function<void(Result<R>)> callback, const std::string& name, Params&& ... ps) {
 
+        std::function<Result<R>()> task = [name, ps..., this] () -> Result<R> {
+            return call<R>(name, ps...);
+        };
+
+        acid::IOManager::GetThis()->submit([callback, task]{
+            callback(task());
         });
     }
     /**
-     * @brief 远程过程调用
+     * @brief 异步远程过程调用
      * @param[in] name 函数名
      * @param[in] ps 可变参
-     * @return 返回调用结果
+     * @return 返回调用结果 future
      */
-    template<typename R>
-    Result<R> call(const std::string& name) {
-        // 从连接池里取出服务连接
-        auto conn = m_conns.get(name);
-        Result<R> result;
-        if (conn) {
-            result = (*conn)->template call<R>(name);
-            if (result.getCode() != RPC_CLOSED) {
-                return result;
-            }
-            // 移除失效连接
-            std::vector<std::string> addrs = m_serviceCache[name];
-            addrs.erase(std::remove(addrs.begin(), addrs.end(),
-                                    (*conn)->getSocket()->getRemoteAddress()->toString()));
-
-            m_conns.remove(name);
-        }
-
-        std::vector<std::string>& addrs = m_serviceCache[name];
-        // 如果服务地址缓存为空则重新向服务中心请求服务发现
-        if (addrs.empty()) {
-            addrs = discover(name);
-            // 如果没有发现服务返回错误
-            if (addrs.empty()) {
-                Result<R> res;
-                res.setCode(RPC_NO_METHOD);
-                res.setMsg("no method:" + name);
-                return res;
-            }
-        }
-
-        // 选择客户端负载均衡策略，根据路由策略选择服务地址
-        acid::rpc::RouteStrategy<std::string>::ptr strategy =
-                acid::rpc::RouteEngine<std::string>::queryStrategy(
-                        acid::rpc::RouteStrategy<std::string>::Random);
-
-        while (addrs.size()) {
-            const std::string& ip = strategy->select(addrs);
-            Address::ptr address = Address::LookupAny(ip);
-            // 选择的服务地址有效
-            if (address) {
-                RpcClient::ptr client = std::make_shared<RpcClient>();
-                // 成功连接上服务器
-                if (client->connect(address)) {
-                    m_conns.set(name, client);
-                    return call<R>(name);
-                }
-            }
-        }
-        result.setCode(RPC_FAIL);
-        result.setMsg("call fail");
-        return result;
+    template<typename R,typename... Params>
+    std::future<Result<R>> async_call(const std::string& name, Params&& ... ps) {
+        std::function<Result<R>()> task = [name, ps..., this] () -> Result<R> {
+            return call<R>(name, ps...);
+        };
+        auto promise = std::make_shared<std::promise<Result<R>>>();
+        acid::IOManager::GetThis()->submit([task, promise]{
+            promise->set_value(task());
+        });
+        return promise->get_future();
     }
     /**
      * @brief 远程过程调用
@@ -126,6 +88,12 @@ public:
         std::vector<std::string>& addrs = m_serviceCache[name];
         // 如果服务地址缓存为空则重新向服务中心请求服务发现
         if (addrs.empty()) {
+            if (!m_registry || !m_registry->isConnected()) {
+                Result<R> res;
+                res.setCode(RPC_CLOSED);
+                res.setMsg("registry closed");
+                return res;
+            }
             addrs = discover(name);
             // 如果没有发现服务返回错误
             if (addrs.empty()) {
@@ -159,10 +127,10 @@ public:
         return result;
     }
 
-//private:
+private:
 
     /**
-     * @brief 发现服务的地址
+     * @brief 服务发现
      * @param name 服务名称
      * @return 服务地址列表
      */
@@ -181,15 +149,18 @@ public:
     bool sendRequest(Protocol::ptr p);
 
 private:
-    uint32_t m_maxSize;
     uint64_t m_timeout;
-    RWMutexType m_mutex;
+    MutexType m_mutex;
     //std::list<RpcClient::ptr> m_conns;
-    // 服务名到全部缓存的服务地址列表映射
+    /// 服务名到全部缓存的服务地址列表映射
     std::map<std::string, std::vector<std::string>> m_serviceCache;
-    // 服务名和服务地址的连接池
+    /// 服务名和服务地址的连接池
     LRUMap<std::string, RpcClient::ptr> m_conns;
+    /// 服务中心连接
     Socket::ptr m_registry;
+
+    /// 服务中心心跳定时器
+    Timer::ptr m_heartTimer;
 };
 
 }
