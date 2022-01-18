@@ -91,7 +91,9 @@ public:
         s->reset();
         return call<R>(s);
     }
-
+    /**
+     * @brief 异步调用
+     */
     template<typename R,typename... Params>
     std::future<Result<R>> async_call(const std::string& name, Params&& ... ps) {
         std::function<Result<R>()> task = [name, ps..., this] () -> Result<R> {
@@ -104,6 +106,9 @@ public:
         return promise->get_future();
     }
 
+    /**
+     * @brief 发布/订阅模式预留接口，未实现
+     */
     template<typename R>
     Result<R> subscribe(const std::string& name, std::function<void(const std::string&)> callback) {
         Serializer::ptr s = std::make_shared<Serializer>();

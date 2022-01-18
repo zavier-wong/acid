@@ -137,11 +137,12 @@ protected:
      * @param[in] client 客户端套接字
      */
     void handleClient(Socket::ptr client) override;
+
     /**
-     * @brief 处理服务中心请求
+     * @brief 处理客户端过程调用请求
      */
-    void handleRegistry();
     Protocol::ptr handleMethodCall(Protocol::ptr p);
+
     /**
      * 处理心跳包
      */

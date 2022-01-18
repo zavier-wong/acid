@@ -16,4 +16,13 @@ set(LIBS
 #echo_server
 acid_add_executable(echo_server echo_server.cpp acid ${LIBS})
 
+#consumer.cpp
+acid_add_executable(consumer rpc/consumer.cpp acid ${LIBS})
+
+#consumer.cpp
+acid_add_executable(provider rpc/provider.cpp acid ${LIBS})
+
+#consumer.cpp
+acid_add_executable(registry.cpp rpc/registry.cpp acid ${LIBS})
+
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin/example)

@@ -34,7 +34,7 @@ bool RpcConnectionPool::connect(Address::ptr address){
         return false;
     }
     ACID_LOG_DEBUG(g_logger) << "connect to registry: " << m_registry->toString();
-    // auto self = shared_from_this();
+
     // 服务中心心跳定时器 30s
     m_heartTimer = acid::IOManager::GetThis()->addTimer(30'000, [this]{
         ACID_LOG_DEBUG(g_logger) << "heart beat";

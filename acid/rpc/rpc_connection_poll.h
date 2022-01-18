@@ -11,7 +11,9 @@
 #include "rpc_client.h"
 
 namespace acid::rpc {
-
+/**
+ * @brief RPC客户端连接池
+ */
 class RpcConnectionPool {
 public:
     using ptr = std::shared_ptr<RpcConnectionPool>;

@@ -97,31 +97,7 @@ bool RpcServer::start() {
     }
     return TcpServer::start();
 }
-void RpcServer::handleRegistry() {
-    ACID_LOG_DEBUG(g_logger) << "handleRegistry: " << m_registry->toString();
-    while (true) {
-        Protocol::ptr request = recvProtocol(m_registry);
-        if (!request) {
-            break;
-        }
-        Protocol::ptr response;
 
-        Protocol::MsgType type = request->getMsgType();
-        switch (type) {
-            case Protocol::MsgType::HEARTBEAT_PACKET:
-                response = handleHeartbeatPacket(request);
-                break;
-            default:
-                ACID_LOG_DEBUG(g_logger) << "protocol:" << request->toString();
-                break;
-        }
-
-        if (!response) {
-            break;
-        }
-        sendProtocol(m_registry, response);
-    }
-}
 void RpcServer::handleClient(Socket::ptr client) {
     ACID_LOG_DEBUG(g_logger) << "handleClient: " << client->toString();
 

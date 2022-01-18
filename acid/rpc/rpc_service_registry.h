@@ -16,7 +16,7 @@
 namespace acid::rpc {
 /**
  * @brief RPC服务注册中心
- * @details 接收客户端服务发现请求，提供发布/订阅模式。接收服务端服务注册请求，断开连接后移除服务。
+ * @details 接收客户端服务发现请求。接收服务端服务注册请求，断开连接后移除服务。
  * 以上统称为服务注册中心的用户
  */
 class RpcServiceRegistry : public TcpServer {
