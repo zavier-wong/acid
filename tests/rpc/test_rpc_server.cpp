@@ -22,14 +22,14 @@ int main(int argc, char** argv) {
         acid::Address::ptr address = acid::IPv4Address::Create("127.0.0.1",port);
         acid::Address::ptr registry = acid::Address::LookupAny("127.0.0.1:8070");
         acid::rpc::RpcServer::ptr server(new acid::rpc::RpcServer());
-
+        server->registerMethod("add",add);
+        server->registerMethod("getStr",getStr);
         while (!server->bind(address)){
             sleep(1);
         }
         server->bindRegistry(registry);
 
-        server->registerMethod("add",add);
-        server->registerMethod("getStr",getStr);
+
 //        server->registerMethod("bind", std::function<int(int,int)>(add));
 //        server->registerMethod("sleep",[](){
 //            sleep(100);

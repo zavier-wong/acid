@@ -9,7 +9,7 @@ static acid::Logger::ptr g_logger = ACID_LOG_ROOT();
 int main() {
     acid::IOManager::ptr ioManager(new acid::IOManager{4});
     ioManager->submit([]{
-        acid::Address::ptr address = acid::Address::LookupAny("127.0.0.1:8080");
+        acid::Address::ptr address = acid::Address::LookupAny("127.0.0.1:9090");
         acid::rpc::RpcClient::ptr client(new acid::rpc::RpcClient());
 
         if (!client->connect(address)) {

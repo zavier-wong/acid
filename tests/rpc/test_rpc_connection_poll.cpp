@@ -7,19 +7,23 @@
 static acid::Logger::ptr g_logger = ACID_LOG_ROOT();
 void test_discover() {
     acid::Address::ptr address = acid::Address::LookupAny("127.0.0.1:8070");
+    //acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>(5);
     acid::rpc::RpcConnectionPool con{5};
     con.connect(address);
-    auto a = con.call<int>("add",123,321);
-    ACID_LOG_INFO(g_logger) << a.toString();
-    auto b = con.call<std::string>("getStr");
-    ACID_LOG_INFO(g_logger) << b.toString();
-    auto c = con.call<int>("bind",123,1);
-    ACID_LOG_INFO(g_logger) << c.toString();
-//    auto d = con.call<void>("sleep");
-//    ACID_LOG_INFO(g_logger) << d.toString();
-    auto e = con.call<std::string>("lambda");
-    ACID_LOG_INFO(g_logger) << e.toString();
 
+    auto aa = con.call<int>("add",123,321);
+
+    std::future<acid::rpc::Result<std::string>> b = con.async_call<std::string>("getStr");
+
+    con.async_call<std::string>([](acid::rpc::Result<std::string> str){
+        ACID_LOG_INFO(g_logger) << str.toString();
+    }, "getStr");
+
+    while (1) {
+        sleep(5);
+    }
+//    ACID_LOG_INFO(g_logger) << b.get().toString();
+//    ACID_LOG_INFO(g_logger) << a.get().toString();
 }
 int main() {
     acid::IOManager ioManager{};
