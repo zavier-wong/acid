@@ -2,6 +2,7 @@
 // Created by zavier on 2021/11/25.
 //
 #include <algorithm>
+#include <signal.h>
 #include "acid/hook.h"
 #include "acid/scheduler.h"
 #include "acid/macro.h"
@@ -59,6 +60,7 @@ Scheduler *Scheduler::GetThis() {
 }
 
 void Scheduler::run() {
+    signal(SIGPIPE, SIG_IGN);
     setThis();
     acid::Fiber::EnableFiber();
     acid::set_hook_enable(true);
