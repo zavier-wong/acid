@@ -40,7 +40,7 @@ Fiber::Fiber() {
     }
     ++s_fiber_count;
 
-    ACID_LOG_DEBUG(g_logger) << "Fiber::Fiber main";
+    //ACID_LOG_DEBUG(g_logger) << "Fiber::Fiber main";
 }
 
 //普通协程构造

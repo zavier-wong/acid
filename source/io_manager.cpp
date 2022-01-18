@@ -56,8 +56,6 @@ void IOManager::FdContext::triggerEvent(IOManager::Event event) {
 
 IOManager::IOManager(size_t threads, const std::string &name) : Scheduler(threads, name) {
 
-    signal(SIGPIPE, SIG_IGN);
-
     int rt = pipe(m_tickleFds);
     ACID_ASSERT(!rt);
 
@@ -106,7 +104,7 @@ void IOManager::contextResize(size_t size) {
 }
 
 bool IOManager::addEvent(int fd, IOManager::Event event, std::function<void()> cb) {
-    ACID_LOG_DEBUG(g_logger) << "addEvent() : fd=" << fd << " event=" << (event==1? "read" : "write");
+    //ACID_LOG_DEBUG(g_logger) << "addEvent() : fd=" << fd << " event=" << (event==1? "read" : "write");
     FdContext* fdContext = nullptr;
     RWMutexType::ReadLock lock(m_mutex);
     if((int)m_fdContexts.size() > fd){
@@ -270,7 +268,7 @@ void IOManager::notify() {
 }
 
 void IOManager::wait() {
-    ACID_LOG_DEBUG(g_logger) << "wait for event";
+    //ACID_LOG_DEBUG(g_logger) << "wait for event";
     const uint64_t MAX_EVNETS = 256;
     epoll_event* events = new epoll_event[MAX_EVNETS]();
     std::unique_ptr<epoll_event[]> uniquePtr(events);

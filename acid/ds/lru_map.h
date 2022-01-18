@@ -14,7 +14,7 @@ class LRUMap {
 public:
     LRUMap(size_t capacity): m_capacity(capacity) { }
 
-    void set(Key key, Val value) {
+    void set(const Key& key, const Val& value) {
         auto it = m_map.find(key);
         // 不存在key，插入数据
         if (it == m_map.end()) {
@@ -32,7 +32,7 @@ public:
         it->second.node_list_iter = m_list.insert(m_list.end(), key);
         it->second.value = value;
     }
-    std::optional<Val> get(Key key) {
+    std::optional<Val> get(const Key& key) {
         auto it = m_map.find(key);
         if (it == m_map.end()) {
             return {};
@@ -42,7 +42,7 @@ public:
         it->second.node_list_iter = m_list.insert(m_list.end(), key);
         return it->second.value;
     }
-    void remove(Key key) {
+    void remove(const Key& key) {
         auto it = m_map.find(key);
         if (it == m_map.end()) {
             return;

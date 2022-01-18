@@ -39,6 +39,7 @@ bool Timer::cancel() {
     if(m_cb){
         auto it = m_manager->m_timers.find(shared_from_this());
         m_manager->m_timers.erase(it);
+        return true;
     }
     return false;
 }
