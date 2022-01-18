@@ -43,6 +43,9 @@ public:
     RpcClient() {
         m_socket = Socket::CreateTCPSocket();
     }
+    ~RpcClient() {
+        m_socket->close();
+    }
     /**
      * @brief 连接一个RPC服务器
      * @param[in] address 服务器地址
