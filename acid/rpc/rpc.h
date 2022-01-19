@@ -15,10 +15,14 @@
 namespace acid::rpc {
 
 template<typename T>
-struct return_type{	typedef T type; };
+struct return_type {
+    using type = T;
+};
 
 template<>
-struct return_type<void>{ typedef int8_t type; };
+struct return_type<void> {
+    using type = int8_t;
+};
 
 /**
  * @brief 调用结果为 void 类型的，将类型转换为 int8_t
