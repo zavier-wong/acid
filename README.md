@@ -1,4 +1,4 @@
-# ACID: 高性能协程RPC网络框架
+# ACID: 高性能协程RPC框架
 
 > 学习本项目需要有一定的C++，网络，RPC知识
 
@@ -49,14 +49,20 @@
 对于任意类型，只要实现了以下的重载，即可参与传输时的序列化。
 ```c++
 template<typename T>
-Serializer &operator >> (T& i){
+Serializer &operator >> (Serializer& in, T& i){
    return *this;
 }
 template<typename T>
-Serializer &operator << (T i){
+Serializer &operator << (Serializer& in, T i){
     return *this;
 }
 ```
+
+本模块同时提供了将tuple序列化和反序列化回tuple的功能。
+
+调用方发起过程调用时，先将参数打包成tuple，再进行序列化传输。
+被调用方收到调用请求时，先将参数包反序列回tuple，再解包转发给函数。
+
     
 ### 通信协议
 
@@ -164,15 +170,15 @@ acid::rpc::RouteStrategy<std::string>::ptr strategy =
 项目采用了心跳发送的方式来检查健康状态。
 
 服务器端：
-开启一个计时器，定期给服务中心发心跳包，服务中心会回一个心跳包。
+开启一个定时器，定期给注册中心发心跳包，注册中心会回一个心跳包。
 
-服务中心：
-开启一个定时器，每次收到一个消息就更新一次定时器。如果倒计时结束，则判断服务掉线。
+注册中心：
+开启一个定时器倒计时，每次收到一个消息就更新一次定时器。如果倒计时结束还没有收到任何消息，则判断服务掉线。
 
 
 ### 三种异步调用方式
 整个框架最终都要落实在服务消费者。为了方便用户，满足用户的不同需求，项目设计了三种异步调用方式。
-
+三种调用方式的模板参数都是返回值类型，对void类型会默认转换uint8_t 。
 1. 以同步的方式异步调用
 
 整个框架本身基于协程池，所以在遇到阻塞时会自动调度实现以同步的方式异步调用
@@ -189,19 +195,46 @@ ACID_LOG_INFO(g_logger) << async_call_future.get().getVal();
 ```
 3. 异步回调
 
-收到消息时执行回调
+async_call的第一个参数为函数时，启用回调模式，回调参数必须是返回类型的包装。收到消息时执行回调。
 ```c++
 con->async_call<int>([](acid::rpc::Result<int> res){
-ACID_LOG_INFO(g_logger) << res.getVal();
+    ACID_LOG_INFO(g_logger) << res.getVal();
 }, "add", 123, 321); 
 ```
 
+对调用结果及状态的封装如下
+```c++
+/**
+ * @brief RPC调用状态
+ */
+enum RpcState{
+    RPC_SUCCESS = 0,    // 成功
+    RPC_FAIL,           // 失败
+    RPC_NO_METHOD,      // 没有找到调用函数
+    RPC_CLOSED,         // RPC 连接被关闭
+    RPC_TIMEOUT         // RPC 调用超时
+};
+
+/**
+ * @brief 包装 RPC调用结果
+ */
+template<typename T = void>
+class Result {
+    ...
+private:
+    /// 调用状态
+    code_type m_code = 0;
+    /// 调用消息
+    msg_type m_msg;
+    /// 调用结果
+    type m_val;
+}
+```
 ## 最后
 通过以上介绍，我们粗略地了解了分布式服务的大概流程。但篇幅有限，无法面面俱到，
 更多细节就需要去阅读代码来理解了。
 
-这并不是终点，项目只是实现了简单的服务注册、发现，
-数据同步，强一致性，选举机制等都没有实现，欢迎有能力者为项目添砖加瓦。
+这并不是终点，项目只是实现了简单的服务注册、发现。后续将考虑加入注册中心集群，限流，熔断，监控节点等。
 
 ## 示例
 
