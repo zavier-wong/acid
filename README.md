@@ -156,12 +156,15 @@ private:
     static typename RouteStrategy<T>::ptr s_hashIPRouteStrategy;
 };
 ```
-选择客户端负载均衡策略，根据路由策略选择服务地址，默认随机策略。
+选择客户端负载均衡策略，根据路由策略选择服务地址。默认随机策略。
 ```c++
 acid::rpc::RouteStrategy<std::string>::ptr strategy =
         acid::rpc::RouteEngine<std::string>::queryStrategy(
                 acid::rpc::RouteStrategy<std::string>::Random);
 ```
+客户端同时会维护RPC连接池，以及服务发现结果缓存，减少频繁建立连接。
+
+通过上述策略尽量消除或减少系统压力及系统中各节点负载不均衡的现象。
 ### 心跳机制
 服务中心必须管理服务器的存活状态，也就是健康检查。
 注册服务的这一组机器，当这个服务组的某台机器如果出现宕机或者服务死掉的时候，
