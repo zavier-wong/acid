@@ -11,7 +11,7 @@
 #include <vector>
 #include <iostream>
 #include <sstream>
-#include <boost/lexical_cast.hpp>
+#include "acid/lexical_cast.h"
 
 namespace acid::http{
 
@@ -193,7 +193,7 @@ static T GetAs(const MapType& m, const std::string& key, const T def = T()){
         return def;
     }
     try {
-        return boost::lexical_cast<T>(it->second);
+        return lexical_cast<T>(it->second);
     } catch (...) {
         return def;
     }
@@ -208,7 +208,7 @@ static bool CheckAndGetAs(const MapType& m, const std::string& key, T& val, cons
         return false;
     }
     try {
-        val = boost::lexical_cast<T>(it.second);
+        val = lexical_cast<T>(it.second);
         return true;
     } catch (...) {
         val = def;

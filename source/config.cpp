@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cctype>
 #include "acid/config.h"
-#include "yaml.h"
 
 namespace acid {
 static Logger::ptr g_logger = ACID_LOG_NAME("system");

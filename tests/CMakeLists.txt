@@ -1,17 +1,7 @@
-
 include_directories(${PROJECT_SOURCE_DIR})
 link_directories(${PROJECT_SOURCE_DIR}/lib)
-link_directories(/usr/local/bin)
 
-include_directories(/usr/local/include/yaml-cpp)
-link_directories(/usr/local/lib)
-
-set(LIBS
-        acid
-        dl
-        pthread
-        yaml-cpp
-        )
+set(LIBS acid)
 
 #test_log
 acid_add_executable(test_log test_log.cpp acid ${LIBS})

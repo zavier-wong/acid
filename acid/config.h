@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <boost/lexical_cast.hpp>
+#include "lexical_cast.h"
 #include "log.h"
 #include "yaml-cpp/yaml.h"
 
@@ -42,7 +42,7 @@ template<class From,class To>
 class LaxicalCast{
 public:
     To operator()(const From& from){
-        return boost::lexical_cast<To>(from);
+        return lexical_cast<To>(from);
     }
 };
 
@@ -250,7 +250,6 @@ public:
     std::string toString() override {
         try {
             RWMutexType::ReadLock lock(m_mutex);
-            //return boost::lexical_cast<std::string>(m_val);
             return ToStr()(m_val);
         }catch (std::exception& e){
             ACID_LOG_ERROR(ACID_LOG_ROOT())<<"ConfigVar::toString() exception "

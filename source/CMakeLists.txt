@@ -1,9 +1,5 @@
-
 include_directories(${PROJECT_SOURCE_DIR})
-include_directories(/usr/local/include/yaml-cpp/)
-include_directories(/mnt/f/SourceCode/boost_1_73_0/)
-link_directories(/mnt/f/SourceCode/boost_1_73_0/libs)
-link_directories(/usr/local/bin)
+
 set(CMAKE_CXX_FLAGS "$ENV{CXXFLAGS} -rdynamic  -std=c++20  -Wall -Werror -Wno-deprecated -Wno-unused-function ")
 set(LIB_SRC
         byte_array.cpp
@@ -21,6 +17,7 @@ set(LIB_SRC
 
         hook.cpp
         io_manager.cpp
+        lexical_cast.cpp
         log.cpp
         mutex.cpp
 
@@ -40,6 +37,7 @@ set(LIB_SRC
         thread.cpp
         util.cpp
         )
+
 set(LIB_LIB pthread yaml-cpp dl)
 
 add_library(acid STATIC ${LIB_SRC})
