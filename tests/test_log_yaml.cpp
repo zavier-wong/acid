@@ -3,7 +3,7 @@
 //
 #include "iostream"
 #include "acid/log.h"
-#include "yaml.h"
+#include "yaml-cpp/yaml.h"
 #include "acid/config.h"
 auto port = acid::Config::Lookup("system.port",8080,"bind port");
 
