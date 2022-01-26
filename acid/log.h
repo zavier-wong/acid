@@ -14,7 +14,7 @@
 #include <vector>
 #include <functional>
 #include <map>
-#include "yaml.h"
+#include "yaml-cpp/yaml.h"
 #include "singleton.h"
 #include "util.h"
 #include "thread.h"
