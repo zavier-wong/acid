@@ -23,6 +23,6 @@ acid_add_executable(consumer rpc/consumer.cpp acid ${LIBS})
 acid_add_executable(provider rpc/provider.cpp acid ${LIBS})
 
 #consumer.cpp
-acid_add_executable(registry.cpp rpc/registry.cpp acid ${LIBS})
+acid_add_executable(registry rpc/registry.cpp acid ${LIBS})
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin/example)
