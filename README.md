@@ -1,6 +1,42 @@
 # ACID: 高性能协程RPC框架
 
 > 学习本项目需要有一定的C++，网络，RPC知识
+### 项目依赖
+1.项目用到了大量C++17/20新特性，如`constexpr if`的编译期代码生成，基于c++20 `coroutine`的无栈协程状态机解析 URI 和 HTTP 协议等。注意，必须安装g++-11，否则不支持编译。
+
+ubuntu可以采用以下方法升级g++，对于其他环境，可以下载源代码自行编译。
+```
+sudo apt install software-properties-common
+sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+sudo apt install gcc-11 g++-11
+```
+2.配置模块采用了yaml-cpp，按照以下方法安装yaml-cpp
+```
+git clone https://github.com/jbeder/yaml-cpp.git
+cd yaml-cpp
+mkdir build
+cd build
+cmake ..
+make #make时如果编译test错误可以忽略
+sudo cp libyaml-cpp.a /usr/local/lib
+cd ..
+sudo cp -r include/yaml-cpp /usr/local/include
+cd ..
+```
+
+3.构建项目 / Build
+```
+git clone https://github.com/zavier-wong/acid
+cd acid
+mkdir build
+cd build
+cmake ..
+make
+cd ../..
+```
+make完可在acid/bin执行example和test的例子。
+
+## RPC框架设计
 
 本项目将从零开始搭建出一个基于协程的异步RPC框架。
 
@@ -18,7 +54,7 @@
 本文档将简单介绍框架的设计，在最后的 examples 会给出完整的使用范例。
 更多的细节需要仔细阅读源码。
 
-## RPC框架设计
+
 本RPC框架主要有网络模块， 序列化模块，通信协议模块，客户端模块，服务端模块，服务注册中心模块，负载均衡模块
 
 主要有以下三个角色：
