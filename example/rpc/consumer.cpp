@@ -30,6 +30,8 @@ void Main() {
         ACID_LOG_INFO(g_logger) << res.getVal();
     }, "add", 123, 321);
 
+    // 异步接口必须保证在得到结果之前程序不能退出
+    sleep(5);
 }
 
 int main() {
