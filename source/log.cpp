@@ -352,7 +352,7 @@ void StdoutLogAppender::log(std::shared_ptr<Logger> logger, LogLevel::Level leve
             break;
     }
     MutexType::Lock lock(m_mutex);
-    std::cout<<color<<m_formatter->format(logger,level,event)<<"\033[0m";
+    std::cout << color << m_formatter->format(logger,level,event) << "\033[0m" << std::flush;
 }
 
 YAML::Node StdoutLogAppender::toYaml() {
