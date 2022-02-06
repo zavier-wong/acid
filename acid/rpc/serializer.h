@@ -137,6 +137,8 @@ public:
             m_byteArray->writeStringVint(t);
         } else if constexpr(std::is_same_v<T, char*>){
             m_byteArray->writeStringVint(std::string(t));
+        } else if constexpr(std::is_same_v<T, const char*>){
+            m_byteArray->writeStringVint(std::string(t));
         }
     }
 
