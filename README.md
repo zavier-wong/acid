@@ -77,12 +77,20 @@ make完可在acid/bin执行example和test的例子。
 并将这个连接存入连接池等待下一次调用。
 
 ### 序列化协议
+本模块支持了基本类型以及标准库容器的序列化，包括：
+* 顺序容器：string, list, vector
+* 关联容器： set, multiset, map, multimap
+* 无序容器：unordered_set, unordered_multiset, unordered_map, unordered_multimap
+* 异构容器：tuple
+
+以及通过以上任意组合嵌套类型的序列化
+
 序列化有以下规则：
 1. 默认情况下序列化，8，16位类型以及浮点数不压缩，32，64位有符号/无符号数采用 zigzag 和 varints 编码压缩
 2. 针对 std::string 会将长度信息压缩序列化作为元数据，然后将原数据直接写入。char数组会先转换成 std::string 后按此规则序列化
 3. 调用 writeFint 将不会压缩数字，调用 writeRowData 不会加入长度信息
 
-对于任意类型，只要实现了以下的重载，即可参与传输时的序列化。
+对于任意用户自定义类型，只要实现了以下的重载，即可参与传输时的序列化。
 ```c++
 template<typename T>
 Serializer &operator >> (Serializer& in, T& i){
@@ -94,12 +102,13 @@ Serializer &operator << (Serializer& in, T i){
 }
 ```
 
-本模块同时提供了将tuple序列化和反序列化回tuple的功能。
 
-调用方发起过程调用时，先将参数打包成tuple，再进行序列化传输。
-被调用方收到调用请求时，先将参数包反序列回tuple，再解包转发给函数。
+rpc调用过程：
 
-    
+- 调用方发起过程调用时，自动将参数打包成tuple，然后序列化传输。
+- 被调用方收到调用请求时，先将参数包反序列回tuple，再解包转发给函数。
+
+
 ### 通信协议
 
 封装通信协议，使RPC Server和RPC Client 可以基于同一协议通信。
