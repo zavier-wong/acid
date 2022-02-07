@@ -9,6 +9,13 @@ int add(int a,int b){
 std::string getStr() {
     return  "hello world";
 }
+std::string CatString(std::vector<std::string> v){
+    std::string res;
+    for(auto& s:v){
+        res+=s;
+    }
+    return res;
+}
 int main(int argc, char** argv) {
     int port = 8080;
     if (argv[1]) {
@@ -24,6 +31,7 @@ int main(int argc, char** argv) {
         acid::rpc::RpcServer::ptr server(new acid::rpc::RpcServer());
         server->registerMethod("add",add);
         server->registerMethod("getStr",getStr);
+        server->registerMethod("CatString", CatString);
         while (!server->bind(address)){
             sleep(1);
         }

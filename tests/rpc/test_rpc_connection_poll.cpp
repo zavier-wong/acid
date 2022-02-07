@@ -5,6 +5,7 @@
 #include "acid/rpc/rpc_connection_pool.h"
 #include "acid/log.h"
 static acid::Logger::ptr g_logger = ACID_LOG_ROOT();
+
 void test_discover() {
     acid::Address::ptr address = acid::Address::LookupAny("127.0.0.1:8070");
     //acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>(5);
@@ -15,13 +16,12 @@ void test_discover() {
 
     std::future<acid::rpc::Result<std::string>> b = con.async_call<std::string>("getStr");
 
+    std::vector<std::string> vec{"a-","b-","c"};
     con.async_call<std::string>([](acid::rpc::Result<std::string> str){
         ACID_LOG_INFO(g_logger) << str.toString();
-    }, "getStr");
+    }, "CatString",vec);
 
-    while (1) {
-        sleep(5);
-    }
+    sleep(5);
 //    ACID_LOG_INFO(g_logger) << b.get().toString();
 //    ACID_LOG_INFO(g_logger) << a.get().toString();
 }
