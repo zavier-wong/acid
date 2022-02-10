@@ -101,7 +101,9 @@ public:
 
     template<typename T>
     void read(T& t) {
-        if constexpr(std::is_same_v<T, float>){
+        if constexpr(std::is_same_v<T, bool>){
+            t = m_byteArray->readFint8();
+        } else if constexpr(std::is_same_v<T, float>){
             t = m_byteArray->readFloat();
         } else if constexpr(std::is_same_v<T, double>){
             t = m_byteArray->readDouble();
@@ -128,7 +130,9 @@ public:
 
     template<typename T>
     void write(T t) {
-        if constexpr(std::is_same_v<T, float>){
+        if constexpr(std::is_same_v<T, bool>){
+            m_byteArray->writeFint8(t);
+        } else if constexpr(std::is_same_v<T, float>){
             m_byteArray->writeFloat(t);
         } else if constexpr(std::is_same_v<T, double>){
             m_byteArray->writeDouble(t);
