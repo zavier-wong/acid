@@ -37,10 +37,7 @@ bool RpcServer::bindRegistry(Address::ptr address) {
     s.reset();
 
     // 向服务中心声明为provider，注册服务端口
-    Protocol::ptr proto = std::make_shared<Protocol>();
-    proto->setMsgType(Protocol::MsgType::RPC_PROVIDER);
-    proto->setContent(s.toString());
-
+    Protocol::ptr proto = Protocol::Create(Protocol::MsgType::RPC_PROVIDER, s.toString());
     m_registry->sendProtocol(proto);
     return true;
 }
@@ -55,8 +52,7 @@ bool RpcServer::start() {
         m_registry->getSocket()->setRecvTimeout(30'000);
         m_heartTimer = m_worker->addTimer(30'000, [server]{
             ACID_LOG_DEBUG(g_logger) << "heart beat";
-            Protocol::ptr proto = std::make_shared<Protocol>();
-            proto->setMsgType(Protocol::MsgType::HEARTBEAT_PACKET);
+            Protocol::ptr proto = Protocol::Create(Protocol::MsgType::HEARTBEAT_PACKET, "");
             server->m_registry->sendProtocol(proto);
             Protocol::ptr response = server->m_registry->recvProtocol();
 
@@ -110,28 +106,24 @@ Serializer::ptr RpcServer::call(const std::string &name, const std::string& arg)
 }
 
 Protocol::ptr RpcServer::handleMethodCall(Protocol::ptr p) {
-    Protocol::ptr response = std::make_shared<Protocol>();
     std::string func_name;
     Serializer request(p->getContent());
     request >> func_name;
     Serializer::ptr rt = call(func_name, request.toString());
-    response->setMsgType(Protocol::MsgType::RPC_METHOD_RESPONSE);
-    response->setContent(rt->toString());
+    Protocol::ptr response = Protocol::Create(Protocol::MsgType::RPC_METHOD_RESPONSE, rt->toString());
     return response;
 }
 
 void RpcServer::registerService(const std::string &name) {
-    Protocol::ptr proto = std::make_shared<Protocol>();
-    proto->setMsgType(Protocol::MsgType::RPC_SERVICE_REGISTER);
-    proto->setContent(name);
-
+    Protocol::ptr proto = Protocol::Create(Protocol::MsgType::RPC_SERVICE_REGISTER, name);
     m_registry->sendProtocol(proto);
-    Protocol::ptr rp = m_registry->recvProtocol();
 
+    Protocol::ptr rp = m_registry->recvProtocol();
     if (!rp) {
         ACID_LOG_WARN(g_logger) << "registerService:" << name << " fail, registry socket:" << m_registry->getSocket()->toString();
         return;
     }
+
     Result<std::string> result;
     Serializer s(rp->getContent());
     s >> result;
@@ -143,9 +135,7 @@ void RpcServer::registerService(const std::string &name) {
 }
 
 Protocol::ptr RpcServer::handleHeartbeatPacket(Protocol::ptr p) {
-    static Protocol::ptr Heartbeat = std::make_shared<Protocol>();
-    Heartbeat->setMsgType(Protocol::MsgType::HEARTBEAT_PACKET);
-    return Heartbeat;
+    return Protocol::HeartBeat();
 }
 
 

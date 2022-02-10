@@ -45,8 +45,7 @@ bool RpcConnectionPool::connect(Address::ptr address){
     // 服务中心心跳定时器 30s
     m_heartTimer = acid::IOManager::GetThis()->addTimer(30'000, [this]{
         ACID_LOG_DEBUG(g_logger) << "heart beat";
-        Protocol::ptr proto = std::make_shared<Protocol>();
-        proto->setMsgType(Protocol::MsgType::HEARTBEAT_PACKET);
+        Protocol::ptr proto = Protocol::HeartBeat();
         Protocol::ptr response;
 
         {
@@ -71,9 +70,8 @@ std::vector<std::string> RpcConnectionPool::discover(const std::string& name){
     std::vector<std::string> rt;
     //Result<std::string> res;
     std::vector<Address::ptr> addrs;
-    Protocol::ptr proto = std::make_shared<Protocol>();
-    proto->setMsgType(Protocol::MsgType::RPC_SERVICE_DISCOVER);
-    proto->setContent(name);
+
+    Protocol::ptr proto = Protocol::Create(Protocol::MsgType::RPC_SERVICE_DISCOVER, name);
     Protocol::ptr response;
 
     {

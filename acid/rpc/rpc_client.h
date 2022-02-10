@@ -163,10 +163,7 @@ private:
             return val;
         }
 
-        Protocol::ptr request = std::make_shared<Protocol>();
-
-        request->setMsgType(Protocol::MsgType::RPC_METHOD_REQUEST);
-        request->setContent(s->toString());
+        Protocol::ptr request = Protocol::Create(Protocol::MsgType::RPC_METHOD_REQUEST, s->toString());
 
         if (!m_session->sendProtocol(request)) {
             val.setCode(RPC_CLOSED);

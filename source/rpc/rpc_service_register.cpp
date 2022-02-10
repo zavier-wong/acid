@@ -75,9 +75,7 @@ void RpcServiceRegistry::handleClient(Socket::ptr client) {
 }
 
 Protocol::ptr RpcServiceRegistry::handleHeartbeatPacket(Protocol::ptr p) {
-    static Protocol::ptr Heartbeat = std::make_shared<Protocol>();
-    Heartbeat->setMsgType(Protocol::MsgType::HEARTBEAT_PACKET);
-    return Heartbeat;
+    return Protocol::HeartBeat();
 }
 
 Address::ptr RpcServiceRegistry::handleProvider(Protocol::ptr p, Socket::ptr sock){
@@ -102,13 +100,11 @@ Protocol::ptr RpcServiceRegistry::handleRegisterService(Protocol::ptr p, Address
     Result<std::string> res = Result<std::string>::Success();
     res.setVal(serviceName);
 
-    Protocol::ptr proto = std::make_shared<Protocol>();
-    proto->setMsgType(Protocol::MsgType::RPC_SERVICE_REGISTER_RESPONSE);
     Serializer s;
     s << res;
     s.reset();
-    proto->setContent(s.toString());
 
+    Protocol::ptr proto = Protocol::Create(Protocol::MsgType::RPC_SERVICE_REGISTER_RESPONSE, s.toString());
     return proto;
 }
 
@@ -129,8 +125,6 @@ Protocol::ptr RpcServiceRegistry::handleDiscoverService(Protocol::ptr p) {
     std::string serviceName = p->getContent();
     std::vector<Result<std::string>> result;
     ByteArray byteArray;
-    Protocol::ptr proto = std::make_shared<Protocol>();
-    proto->setMsgType(Protocol::MsgType::RPC_SERVICE_DISCOVER_RESPONSE);
 
     RWMutexType::ReadLock lock(m_mutex);
     m_services.equal_range(serviceName);
@@ -160,7 +154,7 @@ Protocol::ptr RpcServiceRegistry::handleDiscoverService(Protocol::ptr p) {
         s << result[i];
     }
     s.reset();
-    proto->setContent(s.toString());
+    Protocol::ptr proto = Protocol::Create(Protocol::MsgType::RPC_SERVICE_DISCOVER_RESPONSE, s.toString());
     return proto;
 }
 
