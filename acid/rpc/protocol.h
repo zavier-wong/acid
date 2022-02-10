@@ -45,6 +45,18 @@ public:
         RPC_SERVICE_DISCOVER_RESPONSE
     };
 
+    static Protocol::ptr Create(MsgType type, const std::string& content) {
+        Protocol::ptr proto = std::make_shared<Protocol>();
+        proto->setMsgType(type);
+        proto->setContent(content);
+        return proto;
+    }
+
+    static Protocol::ptr HeartBeat() {
+        static Protocol::ptr Heartbeat = Protocol::Create(Protocol::MsgType::HEARTBEAT_PACKET, "");
+        return Heartbeat;
+    }
+
     uint8_t getMagic() const { return m_magic;}
     uint8_t getVersion() const { return m_version;}
     MsgType getMsgType() const { return static_cast<MsgType>(m_type);}
@@ -62,7 +74,7 @@ public:
         bt->writeFuint8(m_magic);
         bt->writeFuint8(m_version);
         bt->writeFuint8(m_type);
-        bt->writeStringF32(m_content);
+        bt->writeFuint32(m_content.size());
         bt->setPosition(0);
         return bt;
     }
