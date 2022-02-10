@@ -12,6 +12,7 @@
 #include "acid/traits.h"
 #include "protocol.h"
 #include "rpc.h"
+#include "rpc_session.h"
 namespace acid::rpc {
 
 /**
@@ -83,18 +84,6 @@ public:
     void setName(const std::string& name) override;
 protected:
     /**
-     * @brief 接受 RPC 客户端请求
-     * @param[in] client 客户端
-     * @return 客户端请求协议
-     */
-    Protocol::ptr recvProtocol(Socket::ptr client);
-    /**
-     * @brief 发送客户端协议
-     * @param[in] client 客户端
-     * @param[in] p 发送协议
-     */
-    void sendProtocol(Socket::ptr client, Protocol::ptr p);
-    /**
      * @brief 向服务注册中心发起注册
      * @param[in] name 注册的函数名
      */
@@ -151,7 +140,8 @@ private:
     /// 保存注册的函数
     std::map<std::string, std::function<void(Serializer::ptr, const std::string&)>> m_handlers;
     /// 服务中心连接
-    Socket::ptr m_registry;
+    RpcSession::ptr m_registry;
+
     /// 服务中心心跳定时器
     Timer::ptr m_heartTimer;
     /// 开放服务端口

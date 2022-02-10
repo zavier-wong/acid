@@ -20,56 +20,29 @@ void RpcServer::setName(const std::string &name) {
 }
 
 bool RpcServer::bindRegistry(Address::ptr address) {
-    m_registry = Socket::CreateTCP(address);
-    if (!m_registry) {
+    Socket::ptr sock = Socket::CreateTCP(address);
+
+    if (!sock) {
         return false;
     }
-    Serializer s;
-    s << m_port;
-    s.reset();
-
-    if (!m_registry->connect(address)) {
+    if (!sock->connect(address)) {
         ACID_LOG_WARN(g_logger) << "can't connect to registry";
         m_registry = nullptr;
         return false;
     }
+    m_registry = std::make_shared<RpcSession>(sock);
+
+    Serializer s;
+    s << m_port;
+    s.reset();
+
     // 向服务中心声明为provider，注册服务端口
     Protocol::ptr proto = std::make_shared<Protocol>();
     proto->setMsgType(Protocol::MsgType::RPC_PROVIDER);
     proto->setContent(s.toString());
-    sendProtocol(m_registry, proto);
 
+    m_registry->sendProtocol(proto);
     return true;
-}
-
-Protocol::ptr RpcServer::recvProtocol(Socket::ptr client) {
-    SocketStream::ptr stream = std::make_shared<SocketStream>(client, false);
-    Protocol::ptr proto = std::make_shared<Protocol>();
-    ByteArray::ptr byteArray = std::make_shared<ByteArray>();
-    if (stream->readFixSize(byteArray, proto->BASE_LENGTH) <= 0) {
-        return nullptr;
-    }
-    byteArray->setPosition(0);
-    proto->decodeMeta(byteArray);
-
-    if (!proto->getContentLength()) {
-        return proto;
-    }
-
-    std::string buff;
-    buff.resize(proto->getContentLength());
-
-    if (stream->readFixSize(&buff[0], proto->getContentLength()) <= 0) {
-        return nullptr;
-    }
-    proto->setContent(std::move(buff));
-    return proto;
-}
-
-void RpcServer::sendProtocol(Socket::ptr client, Protocol::ptr p) {
-    SocketStream::ptr stream = std::make_shared<SocketStream>(client, false);
-    ByteArray::ptr byteArray = p->encode();
-    stream->writeFixSize(byteArray, byteArray->getSize());
 }
 
 bool RpcServer::start() {
@@ -79,14 +52,14 @@ bool RpcServer::start() {
         }
         auto server = std::dynamic_pointer_cast<RpcServer>(shared_from_this());
         // 服务中心心跳定时器 30s
-        m_registry->setRecvTimeout(30'000);
+        m_registry->getSocket()->setRecvTimeout(30'000);
         m_heartTimer = m_worker->addTimer(30'000, [server]{
             ACID_LOG_DEBUG(g_logger) << "heart beat";
             Protocol::ptr proto = std::make_shared<Protocol>();
             proto->setMsgType(Protocol::MsgType::HEARTBEAT_PACKET);
-            server->sendProtocol(server->m_registry, proto);
-            Protocol::ptr response = server->recvProtocol(server->m_registry);
-            //ACID_LOG_DEBUG(g_logger) << response->toString();
+            server->m_registry->sendProtocol(proto);
+            Protocol::ptr response = server->m_registry->recvProtocol();
+
             if (!response) {
                 ACID_LOG_WARN(g_logger) << "Registry close";
                 //server->stop();
@@ -100,9 +73,9 @@ bool RpcServer::start() {
 
 void RpcServer::handleClient(Socket::ptr client) {
     ACID_LOG_DEBUG(g_logger) << "handleClient: " << client->toString();
-
+    RpcSession::ptr session = std::make_shared<RpcSession>(client);
     while (true) {
-        Protocol::ptr request = recvProtocol(client);
+        Protocol::ptr request = session->recvProtocol();
         if (!request) {
             break;
         }
@@ -121,7 +94,7 @@ void RpcServer::handleClient(Socket::ptr client) {
         if (!response) {
             break;
         }
-        sendProtocol(client, response);
+        session->sendProtocol(response);
     }
 }
 
@@ -152,11 +125,11 @@ void RpcServer::registerService(const std::string &name) {
     proto->setMsgType(Protocol::MsgType::RPC_SERVICE_REGISTER);
     proto->setContent(name);
 
-    sendProtocol(m_registry, proto);
+    m_registry->sendProtocol(proto);
+    Protocol::ptr rp = m_registry->recvProtocol();
 
-    Protocol::ptr rp = recvProtocol(m_registry);
     if (!rp) {
-        ACID_LOG_WARN(g_logger) << "registerService:" << name << " fail, registry socket:" << m_registry->toString();
+        ACID_LOG_WARN(g_logger) << "registerService:" << name << " fail, registry socket:" << m_registry->getSocket()->toString();
         return;
     }
     Result<std::string> result;

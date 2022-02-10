@@ -5,6 +5,7 @@
 #include "acid/log.h"
 #include "acid/rpc/rpc.h"
 #include "acid/rpc/rpc_service_registry.h"
+#include "acid/rpc/rpc_session.h"
 
 namespace acid::rpc {
 static Logger::ptr g_logger = ACID_LOG_NAME("system");
@@ -12,35 +13,6 @@ static Logger::ptr g_logger = ACID_LOG_NAME("system");
 RpcServiceRegistry::RpcServiceRegistry(IOManager *worker, IOManager *accept_worker)
         : TcpServer(worker, accept_worker) {
     setName("RpcServiceRegistry");
-}
-
-Protocol::ptr RpcServiceRegistry::recvRequest(Socket::ptr client) {
-    SocketStream::ptr stream = std::make_shared<SocketStream>(client, false);
-    Protocol::ptr proto = std::make_shared<Protocol>();
-    ByteArray::ptr byteArray = std::make_shared<ByteArray>();
-    if (stream->readFixSize(byteArray, proto->BASE_LENGTH) <= 0) {
-        return nullptr;
-    }
-    byteArray->setPosition(0);
-    proto->decodeMeta(byteArray);
-    if (proto->getContentLength() == 0) {
-        return proto;
-    }
-
-    std::string buff;
-    buff.resize(proto->getContentLength());
-
-    if (stream->readFixSize(&buff[0], proto->getContentLength()) <= 0) {
-        return nullptr;
-    }
-    proto->setContent(std::move(buff));
-    return proto;
-}
-
-void RpcServiceRegistry::sendResponse(Socket::ptr client, Protocol::ptr p) {
-    SocketStream::ptr stream = std::make_shared<SocketStream>(client, false);
-    ByteArray::ptr byteArray = p->encode();
-    stream->writeFixSize(byteArray, byteArray->getSize());
 }
 
 void RpcServiceRegistry::update(Timer::ptr& heartTimer, Socket::ptr client) {
@@ -58,14 +30,14 @@ void RpcServiceRegistry::update(Timer::ptr& heartTimer, Socket::ptr client) {
 
 void RpcServiceRegistry::handleClient(Socket::ptr client) {
     ACID_LOG_DEBUG(g_logger) << "handleClient: " << client->toString();
-
+    RpcSession::ptr session = std::make_shared<RpcSession>(client);
     Timer::ptr heartTimer;
     // 开启心跳定时器
     update(heartTimer, client);
 
     Address::ptr providerAddr;
     while (true) {
-        Protocol::ptr request = recvRequest(client);
+        Protocol::ptr request = session->recvProtocol();
         if (!request) {
             if (providerAddr) {
                 ACID_LOG_WARN(g_logger) << client->toString() << " was closed; unregister " << providerAddr->toString();
@@ -98,7 +70,7 @@ void RpcServiceRegistry::handleClient(Socket::ptr client) {
                 continue;
         }
 
-        sendResponse(client, response);
+        session->sendProtocol(response);
     }
 }
 

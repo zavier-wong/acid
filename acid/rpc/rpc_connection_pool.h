@@ -9,6 +9,7 @@
 #include "acid/mutex.h"
 #include "route_strategy.h"
 #include "rpc_client.h"
+#include "rpc_session.h"
 
 namespace acid::rpc {
 /**
@@ -138,18 +139,6 @@ private:
      */
     std::vector<std::string> discover(const std::string& name);
 
-    /**
-     * @brief 接收服务中心响应
-     * @return 客户端请求协议
-     */
-    Protocol::ptr recvResponse();
-
-    /**
-     * @brief 向服务中心发起请求
-     * @param[in] p 发送协议
-     */
-    bool sendRequest(Protocol::ptr p);
-
 private:
     uint64_t m_timeout;
     MutexType m_mutex;
@@ -159,7 +148,7 @@ private:
     /// 服务名和服务地址的连接池
     LRUMap<std::string, RpcClient::ptr> m_conns;
     /// 服务中心连接
-    Socket::ptr m_registry;
+    RpcSession::ptr m_registry;
 
     /// 服务中心心跳定时器
     Timer::ptr m_heartTimer;

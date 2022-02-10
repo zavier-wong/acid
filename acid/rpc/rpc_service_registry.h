@@ -44,20 +44,6 @@ protected:
     void update(Timer::ptr& heartTimer, Socket::ptr client);
 
     /**
-     * @brief 接收请求
-     * @param[in] client 客户
-     * @return 客户端请求协议
-     */
-    Protocol::ptr recvRequest(Socket::ptr client);
-
-    /**
-     * @brief 发送响应
-     * @param[in] client 客户端
-     * @param[in] p 发送协议
-     */
-    void sendResponse(Socket::ptr client, Protocol::ptr p);
-
-    /**
      * @brief 处理端请求
      * @param[in] client 用户套接字
      */
