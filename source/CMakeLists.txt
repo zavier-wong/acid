@@ -30,6 +30,7 @@ set(LIB_SRC
         rpc/rpc_server.cpp
         rpc/rpc_service_register.cpp
         rpc/rpc_connection_pool.cpp
+        rpc/rpc_session.cpp
 
         scheduler.cpp
         stream.cpp
