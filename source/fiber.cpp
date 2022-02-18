@@ -83,11 +83,8 @@ Fiber::~Fiber() {
 void Fiber::reset(std::function<void()> cb) {
     ACID_ASSERT(m_stack);
     ACID_ASSERT(m_state == INIT || m_state == TERM || m_state == EXCEPT);
-    m_caller = t_fiber;
-    m_state = INIT;
-    m_cb = cb;
 
-    m_caller = nullptr;
+    m_cb = cb;
 
     if(getcontext(&m_ctx)){
         ACID_ASSERT2(false,"System error: getcontext fail");
@@ -97,25 +94,23 @@ void Fiber::reset(std::function<void()> cb) {
     m_ctx.uc_stack.ss_sp = m_stack;
 
     makecontext(&m_ctx,MainFunc,0);
-
+    m_state = INIT;
 }
 
 void Fiber::resume() {
+    SetThis(this);
     ACID_ASSERT2(m_state != EXEC, "Fiber id=" + std::to_string(m_id));
 
-    m_caller = t_fiber;
-
-    SetThis(this);
     m_state = EXEC;
 
-    if(swapcontext(&m_caller->m_ctx,&m_ctx)){
+    if(swapcontext(&t_threadFiber->m_ctx,&m_ctx)){
         ACID_ASSERT2(false,"system error: swapcontext() fail");
     }
 }
 
 void Fiber::yield() {
-    SetThis(m_caller);
-    if(swapcontext(&m_ctx,&m_caller->m_ctx)) {
+    SetThis(t_threadFiber.get());
+    if(swapcontext(&m_ctx,&t_threadFiber->m_ctx)) {
         ACID_ASSERT2(false,"system error: swapcontext() fail");
     }
 }
