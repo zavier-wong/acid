@@ -122,6 +122,12 @@ protected:
         (*serializer) << val;
     }
     /**
+     * @brief 更新心跳定时器
+     * @param[in] heartTimer 心跳定时器
+     * @param[in] client 连接
+     */
+    void update(Timer::ptr& heartTimer, Socket::ptr client);
+    /**
      * @brief 处理客户端请求
      * @param[in] client 客户端套接字
      */
@@ -146,6 +152,8 @@ private:
     Timer::ptr m_heartTimer;
     /// 开放服务端口
     uint32_t m_port;
+    // 和客户端的心跳时间 默认 40s
+    uint64_t m_AliveTime = 40'000;
 };
 
 }
