@@ -70,15 +70,24 @@ bool RpcServer::start() {
 void RpcServer::handleClient(Socket::ptr client) {
     ACID_LOG_DEBUG(g_logger) << "handleClient: " << client->toString();
     RpcSession::ptr session = std::make_shared<RpcSession>(client);
+    Timer::ptr heartTimer;
+    // 开启心跳定时器
+    update(heartTimer, client);
     while (true) {
         Protocol::ptr request = session->recvProtocol();
         if (!request) {
             break;
         }
+        // 更新定时器
+        update(heartTimer, client);
+
         Protocol::ptr response;
 
         Protocol::MsgType type = request->getMsgType();
         switch (type) {
+            case Protocol::MsgType::HEARTBEAT_PACKET:
+                response = handleHeartbeatPacket(request);
+                break;
             case Protocol::MsgType::RPC_METHOD_REQUEST:
                 response = handleMethodCall(request);
                 break;
@@ -94,6 +103,18 @@ void RpcServer::handleClient(Socket::ptr client) {
     }
 }
 
+void RpcServer::update(Timer::ptr& heartTimer, Socket::ptr client) {
+    ACID_LOG_DEBUG(g_logger) << "update heart";
+    if (!heartTimer) {
+        heartTimer = m_worker->addTimer(m_AliveTime, [client]{
+            ACID_LOG_DEBUG(g_logger) << "client:" << client->toString() << " closed";
+            client->close();
+        });
+        return;
+    }
+    // 更新定时器
+    heartTimer->reset(m_AliveTime, true);
+}
 Serializer::ptr RpcServer::call(const std::string &name, const std::string& arg) {
     Serializer::ptr serializer = std::make_shared<Serializer>();
     if (m_handlers.find(name) == m_handlers.end()) {
@@ -110,7 +131,8 @@ Protocol::ptr RpcServer::handleMethodCall(Protocol::ptr p) {
     Serializer request(p->getContent());
     request >> func_name;
     Serializer::ptr rt = call(func_name, request.toString());
-    Protocol::ptr response = Protocol::Create(Protocol::MsgType::RPC_METHOD_RESPONSE, rt->toString());
+    Protocol::ptr response = Protocol::Create(
+            Protocol::MsgType::RPC_METHOD_RESPONSE, rt->toString(), p->getSequenceId());
     return response;
 }
 

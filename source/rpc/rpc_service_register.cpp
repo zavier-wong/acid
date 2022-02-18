@@ -17,15 +17,15 @@ RpcServiceRegistry::RpcServiceRegistry(IOManager *worker, IOManager *accept_work
 
 void RpcServiceRegistry::update(Timer::ptr& heartTimer, Socket::ptr client) {
     ACID_LOG_DEBUG(g_logger) << "update heart";
-    if (heartTimer) {
-        // 取消旧定时器
-        heartTimer->cancel();
+    if (!heartTimer) {
+        heartTimer = m_worker->addTimer(m_AliveTime, [client]{
+            ACID_LOG_DEBUG(g_logger) << "client:" << client->toString() << " closed";
+            client->close();
+        });
+        return;
     }
     // 更新定时器
-    heartTimer = m_worker->addTimer(m_AliveTime, [client]{
-        ACID_LOG_DEBUG(g_logger) << "client:" << client->toString() << " closed";
-        client->close();
-    });
+    heartTimer->reset(m_AliveTime, true);
 }
 
 void RpcServiceRegistry::handleClient(Socket::ptr client) {
