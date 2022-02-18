@@ -79,7 +79,7 @@ make完可在acid/bin执行example和test的例子。
 ### 序列化协议
 本模块支持了基本类型以及标准库容器的序列化，包括：
 * 顺序容器：string, list, vector
-* 关联容器： set, multiset, map, multimap
+* 关联容器：set, multiset, map, multimap
 * 无序容器：unordered_set, unordered_multiset, unordered_map, unordered_multimap
 * 异构容器：tuple
 
@@ -91,7 +91,7 @@ make完可在acid/bin执行example和test的例子。
 3. 调用 writeFint 将不会压缩数字，调用 writeRowData 不会加入长度信息
 
 对于任意用户自定义类型，只要实现了以下的重载，即可参与传输时的序列化。
-```c++
+```cpp
 template<typename T>
 Serializer &operator >> (Serializer& in, T& i){
    return *this;
@@ -110,6 +110,13 @@ rpc调用过程：
 
 
 ### 通信协议
+```c
++--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+--------+
+|  BYTE  |        |        |        |        |        |        |        |        |        |        |             ........                                                           |
++--------------------------------------------+--------+--------------------------+--------+-----------------+--------+--------+--------+--------+--------+--------+-----------------+
+|  magic | version|  type  |          sequence id              |          content length           |             content byte[]                                                     |
++--------+-----------------------------------------------------------------------------------------------------------------------------+--------------------------------------------+
+```
 
 封装通信协议，使RPC Server和RPC Client 可以基于同一协议通信。
 
@@ -119,14 +126,14 @@ rpc调用过程：
 
 第二个字节代表协议版本号，以便对协议进行扩展，使用不同的协议解析器。
 
-第三个字节是请求类型，如心跳包，请求，响应等。
+第四个字节开始是一个32位序列号，用来识别请求顺序。
 
-第四个字节表示消息长度，占四个字节，表示后面还有多少个字节的数据。
+第七个字节开始的四字节表示消息长度，即后面要接收的内容长度。
 
 除了协议头固定7字节，消息不定长。
 
 目前提供了以下几种请求
-```c++
+```cpp
 enum class MsgType : uint8_t {
     HEARTBEAT_PACKET,       // 心跳包
     RPC_PROVIDER,           // 向服务中心声明为provider
@@ -150,13 +157,14 @@ enum class MsgType : uint8_t {
 都去向注册中心注册自己提供的服务以及开放的端口。
 注册中心维护一个服务名到服务地址的多重映射，一个服务下有多个服务地址，
 同时需要维护连接状态，断开连接后移除服务。
-```c++
+```cpp
 /**
  * 维护服务名和服务地址列表的多重映射
  * serviceName -> serviceAddress1
  *             -> serviceAddress2
  *             ...
  */
+std::multimap<std::string, std::string> m_services;
 ```
 ### 服务发现
 虽然服务调用是服务消费方直接发向服务提供方的，但是分布式的服务，都是集群部署的，
@@ -176,7 +184,7 @@ RPC连接池采用LRU淘汰算法，关闭最旧未使用的连接。
 
 提供了三种路由策略（随机、轮询、哈希）, 
 由客户端使用，在客户端实现负载均衡
-```c++
+```cpp
 
 /**
  * @brief: 路由均衡引擎
@@ -202,7 +210,7 @@ private:
 };
 ```
 选择客户端负载均衡策略，根据路由策略选择服务地址。默认随机策略。
-```c++
+```cpp
 acid::rpc::RouteStrategy<std::string>::ptr strategy =
         acid::rpc::RouteEngine<std::string>::queryStrategy(
                 acid::rpc::RouteStrategy<std::string>::Random);
@@ -230,28 +238,28 @@ acid::rpc::RouteStrategy<std::string>::ptr strategy =
 1. 以同步的方式异步调用
 
 整个框架本身基于协程池，所以在遇到阻塞时会自动调度实现以同步的方式异步调用
-```c++
+```cpp
 auto sync_call = con->call<int>("add", 123, 321);
 ACID_LOG_INFO(g_logger) << sync_call.getVal();
 ```
 2. future 形式的异步调用
 
 调用时会立即返回一个future
-```c++
+```cpp
 auto async_call_future = con->async_call<int>("add", 123, 321);
 ACID_LOG_INFO(g_logger) << async_call_future.get().getVal();
 ```
 3. 异步回调
 
 async_call的第一个参数为函数时，启用回调模式，回调参数必须是返回类型的包装。收到消息时执行回调。
-```c++
+```cpp
 con->async_call<int>([](acid::rpc::Result<int> res){
     ACID_LOG_INFO(g_logger) << res.getVal();
 }, "add", 123, 321); 
 ```
 
 对调用结果及状态的封装如下
-```c++
+```cpp
 /**
  * @brief RPC调用状态
  */
@@ -287,7 +295,7 @@ private:
 ## 示例
 
 rpc服务注册中心
-```c++
+```cpp
 #include "acid/rpc/rpc_service_registry.h"
 
 // 服务注册中心
@@ -307,7 +315,7 @@ int main() {
 }
 ```
 rpc 服务提供者
-```c++
+```cpp
 #include "acid/rpc/rpc_server.h"
 
 int add(int a,int b){
@@ -350,7 +358,7 @@ int main() {
 ```
 rpc 服务消费者，并不直接用RpcClient，而是采用更高级的封装，RpcConnectionPool。
 提供了连接池和服务地址缓存。
-```c++
+```cpp
 #include "acid/log.h"
 #include "acid/rpc/rpc_connection_pool.h"
 
