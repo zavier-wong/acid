@@ -74,8 +74,6 @@ private:
     void* m_stack = nullptr;
     /// 协程运行的函数
     std::function<void()> m_cb;
-    /// 调用者协程的指针
-    Fiber* m_caller = nullptr;
 };
 
 }

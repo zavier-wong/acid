@@ -47,7 +47,8 @@ public:
      * @param[in] thread 协程执行的线程id,-1标识任意线程
      */
     template<class FiberOrCb>
-    void submit(FiberOrCb&& fc, int thread = -1) {
+    [[maybe_unused]]
+    Scheduler* submit(FiberOrCb&& fc, int thread = -1) {
         bool need_notify = false;
         {
             MutexType::Lock lock(m_mutex);
@@ -57,6 +58,7 @@ public:
         if(need_notify) {
             notify();
         }
+        return this;
     }
     /**
      * @brief 批量调度协程
