@@ -32,6 +32,9 @@ int main(int argc, char** argv) {
         server->registerMethod("add",add);
         server->registerMethod("getStr",getStr);
         server->registerMethod("CatString", CatString);
+        server->registerMethod("sleep", []{
+            sleep(2);
+        });
         while (!server->bind(address)){
             sleep(1);
         }
