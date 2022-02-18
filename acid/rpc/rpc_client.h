@@ -7,6 +7,7 @@
 #include <memory>
 #include <functional>
 #include <future>
+#include "acid/ds/safe_queue.h"
 #include "acid/io_manager.h"
 #include "acid/net/socket.h"
 #include "acid/net/socket_stream.h"
@@ -17,21 +18,18 @@
 namespace acid::rpc {
 
 /**
- * @brief 实际的序列化函数，利用折叠表达式展开参数包
- */
-template<typename Tuple, std::size_t... Index>
-void package_params_impl(Serializer& ds, const Tuple& t, std::index_sequence<Index...>)
-{
-    (ds << ... << std::get<Index>(t));
-}
-
-/**
  * @brief 将被打包为 tuple 的函数参数进行序列化
  */
 template<typename... Args>
-void package_params(Serializer& ds, const std::tuple<Args...>& t)
-{
-    package_params_impl(ds, t, std::index_sequence_for<Args...>{});
+void package_params(Serializer& s, const std::tuple<Args...>& t) {
+    /**
+     * @brief 实际的序列化函数，利用折叠表达式展开参数包
+     */
+    const auto& package = []<typename Tuple, std::size_t... Index>
+    (Serializer& s, const Tuple& t, std::index_sequence<Index...>) {
+        (s << ... << std::get<Index>(t));
+    };
+    package(s, t, std::index_sequence_for<Args...>{});
 }
 
 /**
@@ -40,37 +38,25 @@ void package_params(Serializer& ds, const std::tuple<Args...>& t)
 class RpcClient {
 public:
     using ptr = std::shared_ptr<RpcClient>;
+    using MutexType = Mutex;
 
-    RpcClient() { }
+    RpcClient();
 
-    ~RpcClient() { }
+    ~RpcClient();
+
+    void close();
 
     /**
      * @brief 连接一个RPC服务器
      * @param[in] address 服务器地址
      */
-    bool connect(Address::ptr address){
-        Socket::ptr sock = Socket::CreateTCP(address);
-
-        if (!sock) {
-            return false;
-        }
-        if (!sock->connect(address, m_timeout)) {
-            m_session = nullptr;
-            return false;
-        }
-        m_session = std::make_shared<RpcSession>(sock);
-        return true;
-    }
+    bool connect(Address::ptr address);
 
     /**
      * @brief 设置RPC调用超时时间
      * @param[in] address 服务器地址
      */
-    void setTimeout(uint64_t timeout_ms) {
-        m_timeout = timeout_ms;
-        m_session->getSocket()->setRecvTimeout(timeout_ms);
-    }
+    void setTimeout(uint64_t timeout_ms);
     /**
      * @brief 有参数的调用
      * @param[in] name 函数名
@@ -134,21 +120,13 @@ public:
         return promise->get_future();
     }
 
-    /**
-     * @brief 发布/订阅模式预留接口，未实现
-     */
-    template<typename R>
-    Result<R> subscribe(const std::string& name, std::function<void(const std::string&)> callback) {
-        Serializer::ptr s = std::make_shared<Serializer>();
-        (*s) << name;
-        s->reset();
-        return call<R>(s);
-    }
-
     Socket::ptr getSocket() {
         return m_session->getSocket();
     }
 private:
+    void handleSend();
+    void handleRecv();
+    void handleMethodResponse(Protocol::ptr response);
     /**
      * @brief 实际调用
      * @param[in] s 序列化完的请求
@@ -157,31 +135,73 @@ private:
     template<typename R>
     Result<R> call(Serializer::ptr s) {
         Result<R> val;
-        if (!m_session) {
+        if (!m_session || !m_session->isConnected()) {
             val.setCode(RPC_CLOSED);
             val.setMsg("socket closed");
             return val;
         }
 
-        Protocol::ptr request = Protocol::Create(Protocol::MsgType::RPC_METHOD_REQUEST, s->toString());
+        Protocol::ptr request;
 
-        if (!m_session->sendProtocol(request)) {
-            val.setCode(RPC_CLOSED);
-            val.setMsg("socket closed");
+        std::map<uint32_t, std::pair<Fiber::ptr, Protocol::ptr>>::iterator it;
+        Fiber::ptr self = Fiber::GetThis();
+
+        {
+            MutexType::Lock lock(m_mutex);
+            request = Protocol::Create(Protocol::MsgType::RPC_METHOD_REQUEST, s->toString(),m_sequenceId);
+            it = m_responseHandle.emplace(m_sequenceId++, std::make_pair(self, nullptr)).first;
+        }
+
+        acid::Timer::ptr timer;
+        std::shared_ptr<int> timeCondition(new int{0});
+        if( m_timeout != (uint64_t)-1 ){
+            std::weak_ptr<int> weakPtr(timeCondition);
+            acid::IOManager* ioManager = acid::IOManager::GetThis();
+            ioManager->addConditionTimer(m_timeout,[weakPtr, ioManager, self, it, this]() mutable {
+                auto t = weakPtr.lock();
+                if(!t || *t){
+                    return ;
+                }
+
+                {
+                    MutexType::Lock lock(m_mutex);
+                    *t = ETIMEDOUT;
+                    if (!m_isClose) {
+                        m_responseHandle.erase(it);
+                    }
+                    ioManager->submit(self);
+                }
+
+            },weakPtr);
+        }
+
+        m_queue.push(request);
+        // 让出协程，等待调用结果
+        Fiber::YieldToHold();
+
+        if(timer){
+            timer->cancel();
+        }
+        if(*timeCondition){
+            // 超时
+            val.setCode(RPC_TIMEOUT);
+            val.setMsg("call timeout");
             return val;
         }
 
-        Protocol::ptr response = m_session->recvProtocol();
+        Protocol::ptr response;
+
+        {
+            MutexType::Lock lock(m_mutex);
+            response = m_isClose ? nullptr : it->second.second;
+            if (!m_isClose) {
+                m_responseHandle.erase(it);
+            }
+        }
 
         if (!response) {
-            if (errno == ETIMEDOUT) {
-                // 超时
-                val.setCode(RPC_TIMEOUT);
-                val.setMsg("call timeout");
-            } else {
-                val.setCode(RPC_CLOSED);
-                val.setMsg("socket closed");
-            }
+            val.setCode(RPC_CLOSED);
+            val.setMsg("socket closed");
             return val;
         }
         if (response->getContent().empty()) {
@@ -197,10 +217,24 @@ private:
     }
 
 private:
+    std::atomic_bool m_isClose = true;
+    std::atomic_bool m_isHearClose = true;
     /// 超时时间
     uint64_t m_timeout = -1;
     /// 服务器的连接
     RpcSession::ptr m_session;
+    /// 序列号
+    uint32_t m_sequenceId = 0;
+    ///
+    MutexType m_mutex;
+
+    MutexType m_sendMutex;
+    ///
+    std::map<uint32_t, std::pair<Fiber::ptr, Protocol::ptr>> m_responseHandle;
+
+    SafeQueue<Protocol::ptr> m_queue;
+    /// service provider心跳定时器
+    Timer::ptr m_heartTimer;
 };
 
 
