@@ -27,6 +27,7 @@ set(LIB_SRC
         net/tcp_server.cpp
         net/uri.cpp
 
+        rpc/rpc_client.cpp
         rpc/rpc_server.cpp
         rpc/rpc_service_register.cpp
         rpc/rpc_connection_pool.cpp
