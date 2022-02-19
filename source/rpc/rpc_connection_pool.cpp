@@ -8,9 +8,8 @@
 namespace acid::rpc {
 static Logger::ptr g_logger = ACID_LOG_NAME("system");
 
-RpcConnectionPool::RpcConnectionPool(size_t capacity,uint64_t timeout_ms)
-        : m_timeout(timeout_ms)
-        , m_conns(capacity){
+RpcConnectionPool::RpcConnectionPool(uint64_t timeout_ms)
+        : m_timeout(timeout_ms){
 
 }
 
@@ -49,7 +48,7 @@ bool RpcConnectionPool::connect(Address::ptr address){
         Protocol::ptr response;
 
         {
-            MutexType::Lock lock(m_mutex);
+            MutexType::Lock lock(m_sendMutex);
             m_registry->sendProtocol(proto);
             response = m_registry->recvProtocol();
         }
@@ -65,7 +64,7 @@ bool RpcConnectionPool::connect(Address::ptr address){
     return true;
 }
 
-std::vector<std::string> RpcConnectionPool::discover(const std::string& name){
+std::vector<std::string> RpcConnectionPool::discover_impl(const std::string& name){
     std::vector<Result<std::string>> res;
     std::vector<std::string> rt;
     //Result<std::string> res;
@@ -75,7 +74,7 @@ std::vector<std::string> RpcConnectionPool::discover(const std::string& name){
     Protocol::ptr response;
 
     {
-        MutexType::Lock lock(m_mutex);
+        MutexType::Lock lock(m_sendMutex);
         m_registry->sendProtocol(proto);
         response = m_registry->recvProtocol();
     }
