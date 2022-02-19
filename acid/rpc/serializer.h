@@ -29,7 +29,7 @@ namespace acid::rpc {
  *
  * 支持标准库容器：
  * 顺序容器：string, list, vector
- * 关联容器： set, multiset, map, multimap
+ * 关联容器：set, multiset, map, multimap
  * 无序容器：unordered_set, unordered_multiset, unordered_map, unordered_multimap
  * 异构容器：tuple
  */
