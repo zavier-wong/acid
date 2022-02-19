@@ -12,7 +12,7 @@ void Main() {
     acid::Address::ptr registry = acid::Address::LookupAny("127.0.0.1:8080");
 
     // 设置连接池的数量
-    acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>(5);
+    acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>();
 
     // 连接服务中心
     con->connect(registry);
@@ -30,11 +30,19 @@ void Main() {
         ACID_LOG_INFO(g_logger) << res.getVal();
     }, "add", 123, 321);
 
+    // 测试并发
+    int n=0;
+    while(n != 1000) {
+        n++;
+        con->async_call<int>([](acid::rpc::Result<int> res){
+            ACID_LOG_INFO(g_logger) << res.getVal();
+        }, "add", 0, n);
+    }
     // 异步接口必须保证在得到结果之前程序不能退出
-    sleep(5);
+    sleep(3);
 }
 
 int main() {
-    acid::IOManager::ptr loop = std::make_shared<acid::IOManager>();
-    loop->submit(Main);
+    acid::IOManager loop;
+    loop.submit(Main);
 }

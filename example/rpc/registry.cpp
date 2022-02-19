@@ -16,6 +16,6 @@ void Main() {
 }
 
 int main() {
-    acid::IOManager::ptr loop = std::make_shared<acid::IOManager>();
-    loop->submit(Main);
+    acid::IOManager loop;
+    loop.submit(Main);
 }
