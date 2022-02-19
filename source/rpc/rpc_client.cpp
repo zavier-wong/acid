@@ -14,13 +14,13 @@ RpcClient::~RpcClient() {
 }
 
 void RpcClient::close() {
-    ACID_LOG_WARN(g_logger) << "close";
+    ACID_LOG_DEBUG(g_logger) << "close";
     MutexType::Lock lock(m_mutex);
 
     if (m_isClose) {
         return;
     }
-    IOManager::GetThis()->cancelAllEvent(m_session->getSocket()->getSocket());
+
     m_isHearClose = true;
     m_isClose = true;
     m_queue.push(nullptr);
@@ -33,6 +33,8 @@ void RpcClient::close() {
         m_heartTimer->cancel();
         m_heartTimer = nullptr;
     }
+
+    IOManager::GetThis()->delEvent(m_session->getSocket()->getSocket(), IOManager::READ);
     if (m_session->isConnected()) {
         m_session->close();
     }
@@ -82,12 +84,15 @@ void RpcClient::handleSend() {
     while (true) {
         Protocol::ptr request;
         m_queue.waitAndPop(request);
-        if (m_isClose) {
+        if (!request) {
             break;
         }
         {
             MutexType::Lock lock(m_sendMutex);
             m_session->sendProtocol(request);
+        }
+        if (m_isClose) {
+            break;
         }
     }
 }
@@ -96,11 +101,11 @@ void RpcClient::handleRecv() {
     if (!m_session->isConnected()) {
         return;
     }
-    while (!m_isClose) {
+    while (true) {
         Protocol::ptr response = m_session->recvProtocol();
         //ACID_LOG_WARN(g_logger) << "recv";
         if (!response) {
-            ACID_LOG_DEBUG(g_logger) << "close recv";
+            //ACID_LOG_DEBUG(g_logger) << "close recv";
             if (m_isClose) {
                 break;
             }
