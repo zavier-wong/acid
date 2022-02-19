@@ -175,14 +175,12 @@ std::multimap<std::string, std::string> m_services;
 客户端从注册中心获取服务，它需要在发起调用时，
 从注册中心拉取开放服务的服务器地址列表存入本地缓存，
 
-RPC连接池采用LRU淘汰算法，关闭最旧未使用的连接。
-
 ### 负载均衡
 实现通用类型负载均衡路由引擎（工厂）。
 通过路由引擎获取指定枚举类型的负载均衡器，
 降低了代码耦合，规范了各个负载均衡器的使用，减少出错的可能。
 
-提供了三种路由策略（随机、轮询、哈希）, 
+提供了三种路由策略（随机、轮询、一致性哈希）, 
 由客户端使用，在客户端实现负载均衡
 ```cpp
 
@@ -310,8 +308,8 @@ void Main() {
 }
 
 int main() {
-    acid::IOManager::ptr loop = std::make_shared<acid::IOManager>();
-    loop->submit(Main);
+    acid::IOManager loop;
+    loop.submit(Main);
 }
 ```
 rpc 服务提供者
@@ -322,23 +320,22 @@ int add(int a,int b){
     return a + b;
 }
 
-std::string getStr() {
-    return  "hello world";
-}
-
 // 向服务中心注册服务，并处理客户端请求
 void Main() {
     int port = 9000;
     acid::Address::ptr local = acid::IPv4Address::Create("127.0.0.1",port);
     acid::Address::ptr registry = acid::Address::LookupAny("127.0.0.1:8080");
 
-    acid::rpc::RpcServer::ptr server = std::make_shared<acid::rpc::RpcServer>();
+    acid::rpc::RpcServer::ptr server = std::make_shared<acid::rpc::RpcServer>();;
 
-    // 注册服务，支持函数指针和函数对象
+    // 注册服务，支持函数指针和函数对象，支持标准库容器
     server->registerMethod("add",add);
-    server->registerMethod("getStr",getStr);
     server->registerMethod("echo", [](std::string str){
         return str;
+    });
+    server->registerMethod("revers", [](std::vector<std::string> vec) -> std::vector<std::string>{
+        std::reverse(vec.begin(), vec.end());
+        return vec;
     });
 
     // 先绑定本地地址
@@ -352,8 +349,8 @@ void Main() {
 }
 
 int main() {
-    acid::IOManager::ptr loop = std::make_shared<acid::IOManager>();
-    loop->submit(Main);
+    acid::IOManager loop;
+    loop.submit(Main);
 }
 ```
 rpc 服务消费者，并不直接用RpcClient，而是采用更高级的封装，RpcConnectionPool。
@@ -369,7 +366,7 @@ void Main() {
     acid::Address::ptr registry = acid::Address::LookupAny("127.0.0.1:8080");
 
     // 设置连接池的数量
-    acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>(5);
+    acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>();
 
     // 连接服务中心
     con->connect(registry);
@@ -386,12 +383,22 @@ void Main() {
     con->async_call<int>([](acid::rpc::Result<int> res){
         ACID_LOG_INFO(g_logger) << res.getVal();
     }, "add", 123, 321);
-
+    
+    // 测试并发
+    int n=0;
+    while(n != 1000) {
+        n++;
+        con->async_call<int>([](acid::rpc::Result<int> res){
+            ACID_LOG_INFO(g_logger) << res.getVal();
+        }, "add", 0, n);
+    }
+    // 异步接口必须保证在得到结果之前程序不能退出
+    sleep(3);
 }
 
 int main() {
-    acid::IOManager::ptr loop = std::make_shared<acid::IOManager>();
-    loop->submit(Main);
+    acid::IOManager loop;
+    loop.submit(Main);
 }
 ```
 
