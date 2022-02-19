@@ -225,13 +225,13 @@ private:
     RpcSession::ptr m_session;
     /// 序列号
     uint32_t m_sequenceId = 0;
-    ///
-    MutexType m_mutex;
-
+    /// 发送mutex
     MutexType m_sendMutex;
-    ///
+    /// 序列号到对应的协程映射
     std::map<uint32_t, std::pair<Fiber::ptr, Protocol::ptr>> m_responseHandle;
-
+    /// m_responseHandle 的 mutex
+    MutexType m_mutex;
+    /// 消息发送队列
     SafeQueue<Protocol::ptr> m_queue;
     /// service provider心跳定时器
     Timer::ptr m_heartTimer;
