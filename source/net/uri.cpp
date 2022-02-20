@@ -142,6 +142,7 @@ static inline bool IsValid(const char* p) {
         case '#':
         case '[':
         case ']':
+        case '%':
             return true;
         default:
             return false;
