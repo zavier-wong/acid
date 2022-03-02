@@ -33,6 +33,29 @@ int main(){
             return 0;
         });
 
+        server->getServletDispatch()->addServlet("/json",[](acid::http::HttpRequest::ptr request
+                , acid::http::HttpResponse::ptr response
+                , acid::http::HttpSession::ptr session) ->uint32_t {
+            acid::Json json;
+            switch (request->getMethod()) {
+                case acid::http::HttpMethod::GET:
+                    json["bool"] = true;
+                    json["number"] = 114514;
+                    json["float"] = M_PI;
+                    json["string"] = "abcdefg";
+                    response->setJson(json);
+                    break;
+                case acid::http::HttpMethod::POST:
+                    json = request->getJson();
+                    ACID_LOG_INFO(g_logger) << json.type_name() << "\n" << json;
+                    response->setJson(json);
+                    break;
+                default:
+                    break;
+            }
+            return 0;
+        });
+
         while (!server->bind(address)){
             sleep(1);
         }
