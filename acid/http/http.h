@@ -11,6 +11,7 @@
 #include <vector>
 #include <iostream>
 #include <sstream>
+#include "acid/json.h"
 #include "acid/lexical_cast.h"
 
 namespace acid::http{
@@ -234,6 +235,7 @@ public:
     const MapType& getHeaders() const { return m_headers;}
     const MapType& getParams() const { return m_params;}
     const MapType& getCookies() const { return m_cookies;}
+    Json getJson() const;
 
     void setMethod(HttpMethod method) { m_method = method;}
     void setVersion(uint8_t version){ m_version = version;}
@@ -247,6 +249,8 @@ public:
     void setParams(const MapType& params) { m_params = params;}
     void setCookies(const MapType& cookies) { m_cookies = cookies;}
     void setContentType(HttpContentType type) { setHeader("Content-Type", HttpContentTypeToString(type));}
+    void setContentType(const std::string& type) { setHeader("Content-Type", type);}
+    void setJson(const Json& json);
 
     std::string getHeader(const std::string& key, const std::string& def = "");
     std::string getParam(const std::string& key, const std::string& def = "");
@@ -333,6 +337,7 @@ public:
     const MapType& getHeaders() const { return m_headers;}
     const std::vector<std::string> getCookies() const { return m_cookies;}
     HttpContentType getContentType() { return StringToContentType(getHeader("Content-Type", ""));};
+    Json getJson() const;
 
     void setStatus(HttpStatus status) { m_status = status;}
     void setStatus(uint32_t status) { m_status = (HttpStatus)status;}
@@ -344,6 +349,8 @@ public:
     void setHeaders(const MapType& headers) { m_headers = headers;}
     void setCookies(const std::vector<std::string>& cookies) { m_cookies = cookies;}
     void setContentType(HttpContentType type) { setHeader("Content-Type", HttpContentTypeToString(type));}
+    void setContentType(const std::string& type) { setHeader("Content-Type", type);}
+    void setJson(const Json& json);
 
     const std::string& getHeader(const std::string& key, const std::string& def = "") const;
     void setHeader(const std::string& key, const std::string& val);

@@ -3,8 +3,9 @@
 //
 
 #include "acid/http/http.h"
-
+#include "acid/log.h"
 namespace acid::http{
+static Logger::ptr g_logger = ACID_LOG_NAME("system");
 
 HttpMethod StringToMethod(const std::string& m){
 #define XX(num, name, string)               \
@@ -97,6 +98,21 @@ HttpRequest::HttpRequest(uint8_t version, bool close)
         ,m_websocket(false)
         ,m_path("/"){
 
+}
+
+Json HttpRequest::getJson() const {
+    Json json;
+    try {
+        json = Json::parse(m_body);
+    } catch (...) {
+        ACID_LOG_INFO(g_logger) << "HttpRequest::getJson() fail, body=" << m_body;
+    }
+    return json;
+}
+
+void HttpRequest::setJson(const Json& json) {
+    setContentType(HttpContentType::APPLICATION_JSON);
+    m_body = json.dump();
 }
 
 std::string HttpRequest::getHeader(const std::string &key, const std::string &def) {
@@ -213,6 +229,21 @@ HttpResponse::HttpResponse(uint8_t version, bool close)
     ,m_version(version)
     ,m_close(close)
     ,m_websocket(false){
+}
+
+Json HttpResponse::getJson() const {
+    Json json;
+    try {
+        json = Json::parse(m_body);
+    } catch (...) {
+        ACID_LOG_INFO(g_logger) << "HttpResponse::getJson() fail, body=" << m_body;
+    }
+    return json;
+}
+
+void HttpResponse::setJson(const Json& json) {
+    setContentType(HttpContentType::APPLICATION_JSON);
+    m_body = json.dump();
 }
 
 const std::string& HttpResponse::getHeader(const std::string& key, const std::string& def) const{
