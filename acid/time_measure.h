@@ -2,21 +2,24 @@
 // Created by zavier on 2021/9/28.
 //
 
-#ifndef BASICCOMPONENTS_TIMEMEASURE_H
-#define BASICCOMPONENTS_TIMEMEASURE_H
+#ifndef ACID_TIMEMEASURE_H
+#define ACID_TIMEMEASURE_H
 #include <chrono>
 #include <string>
 #include <iostream>
 
+namespace acid {
 using namespace std;
 using namespace std::chrono;
-
-class time_measure{
+/**
+ * @brief 工具类，测试程序执行时间
+ */
+class TimeMeasure{
 public:
-    time_measure( ): m_begin(high_resolution_clock::now()){
+    TimeMeasure(): m_begin(high_resolution_clock::now()){
 
     }
-    ~time_measure(){
+    ~TimeMeasure(){
         std::cout<< std::endl << " cost: " << sp(elapsed())<< " 毫秒"
         << " micro: " << sp(elapsed_micro()) << " 微妙"
         << " nano: "<< sp(elapsed_nano()) << " 纳秒"<< std::endl;
@@ -67,4 +70,5 @@ private:
         return str;
     }
 };
-#endif //BASICCOMPONENTS_TIMEMEASURE_H
+}
+#endif //ACID_TIMEMEASURE_H
