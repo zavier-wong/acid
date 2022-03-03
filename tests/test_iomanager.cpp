@@ -31,7 +31,7 @@ void test_fiber(){
 void test1(){
     acid::IOManager ioManager(2);
     ioManager.submit(&test_fiber);
-    ioManager.submit(make_shared<acid::Fiber>(test_fiber));
+    ioManager.submit(std::make_shared<acid::Fiber>(test_fiber));
 }
 void test2(){
     ACID_LOG_DEBUG(g_logger) << acid::Fiber::GetThis()->getState();

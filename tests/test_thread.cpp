@@ -25,7 +25,7 @@ void f(){
 }
 void f2(){
     //acid::Thread t;
-    time_measure time;
+    acid::TimeMeasure time;
     acid::Thread::ptr thread[10];
 
     for(int i=0;i<10;i++){
