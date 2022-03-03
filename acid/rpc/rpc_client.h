@@ -157,7 +157,7 @@ private:
         if( m_timeout != (uint64_t)-1 ){
             std::weak_ptr<int> weakPtr(timeCondition);
             acid::IOManager* ioManager = acid::IOManager::GetThis();
-            ioManager->addConditionTimer(m_timeout,[weakPtr, ioManager, self, it, this]() mutable {
+            timer = ioManager->addConditionTimer(m_timeout,[weakPtr, ioManager, self, it, this]() mutable {
                 auto t = weakPtr.lock();
                 if(!t || *t){
                     return ;

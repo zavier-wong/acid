@@ -118,7 +118,7 @@ retry:
         acid::Timer::ptr timer;
         std::weak_ptr<int> weakPtr(timeCondition);
         if( timeout != (uint64_t)-1 ){
-            ioManager->addConditionTimer(timeout,[weakPtr, ioManager, fd, event]{
+            timer = ioManager->addConditionTimer(timeout,[weakPtr, ioManager, fd, event]{
                 auto t = weakPtr.lock();
                 if(!t || *t){
                     return ;
