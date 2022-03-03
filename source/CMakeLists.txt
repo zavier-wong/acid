@@ -19,7 +19,6 @@ set(LIB_SRC
         io_manager.cpp
         lexical_cast.cpp
         log.cpp
-        mutex.cpp
 
         net/address.cpp
         net/socket.cpp
@@ -32,6 +31,9 @@ set(LIB_SRC
         rpc/rpc_service_register.cpp
         rpc/rpc_connection_pool.cpp
         rpc/rpc_session.cpp
+
+        sync/mutex.cpp
+        sync/co_condvar.cpp
 
         scheduler.cpp
         stream.cpp
