@@ -5,7 +5,7 @@
 #ifndef ACID_RPC_CONNECTION_POOL_H
 #define ACID_RPC_CONNECTION_POOL_H
 #include "acid/traits.h"
-#include "acid/mutex.h"
+#include "acid/sync.h"
 #include "route_strategy.h"
 #include "rpc_client.h"
 #include "rpc_session.h"

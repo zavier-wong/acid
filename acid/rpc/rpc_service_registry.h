@@ -9,7 +9,7 @@
 #include <vector>
 #include <list>
 #include <map>
-#include "acid/mutex.h"
+#include "acid/sync.h"
 #include "acid/net/tcp_server.h"
 #include "acid/net/socket_stream.h"
 #include "protocol.h"
