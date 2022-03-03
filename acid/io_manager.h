@@ -6,8 +6,8 @@
 #define ACID_IO_MANAGER_H
 #include <atomic>
 #include <memory>
-#include "mutex.h"
 #include "scheduler.h"
+#include "sync.h"
 #include "timer.h"
 namespace acid{
 class IOManager: public Scheduler, public TimeManager{
@@ -22,7 +22,7 @@ public:
 
 private:
     struct FdContext{
-        using MutexType = Mutex;
+        using MutexType = CoMutex;
         struct EventContext{
             Scheduler* scheduler = nullptr; //事件执行的Scheduler
             Fiber::ptr fiber;               //事件的协程

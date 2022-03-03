@@ -10,7 +10,7 @@
 #include <functional>
 #include <pthread.h>
 #include <unistd.h>
-#include "mutex.h"
+#include "sync.h"
 namespace acid{
 class Thread{
 public:
@@ -35,7 +35,7 @@ private:
     pthread_t m_thread = 0;
     callback m_cb;
     std::string m_name ;
-    Semaphore m_sem;
+    Semaphore m_sem{1};
 };
 
 }

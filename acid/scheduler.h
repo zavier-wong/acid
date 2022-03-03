@@ -11,7 +11,7 @@
 #include <queue>
 #include <vector>
 #include "fiber.h"
-#include "mutex.h"
+#include "sync.h"
 #include "macro.h"
 #include "thread.h"
 namespace acid{

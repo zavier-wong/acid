@@ -7,8 +7,8 @@
 #include <functional>
 #include <memory>
 #include <set>
-#include "mutex.h"
 #include "log.h"
+#include "sync.h"
 namespace acid{
 class TimeManager;
 class Timer : public std::enable_shared_from_this<Timer>{

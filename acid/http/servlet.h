@@ -8,7 +8,7 @@
 #include <memory>
 #include "http.h"
 #include "http_session.h"
-#include "acid/mutex.h"
+#include "acid/sync.h"
 namespace acid::http {
 class Servlet {
 public:
