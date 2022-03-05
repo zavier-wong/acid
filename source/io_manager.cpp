@@ -82,6 +82,11 @@ IOManager::IOManager(size_t threads, const std::string &name) : Scheduler(thread
 }
 
 IOManager::~IOManager(){
+    sleep(3);
+    m_stop = true;
+    while (!stopping()) {
+        sleep(3);
+    }
     stop();
     close(m_epfd);
     close(m_tickleFds[0]);
