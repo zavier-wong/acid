@@ -47,13 +47,16 @@ int main() {
 //        ACID_LOG_DEBUG(g_logger) << rt.get().toString();
         int n=0;
         //std::vector<std::future<acid::rpc::Result<int>>> vec;
-        while (n!=10000) {
+        while (n!=1000) {
             //ACID_LOG_DEBUG(g_logger) << n++;
             n++;
-            //usleep(1000);
-            client->async_call<int>([](acid::rpc::Result<int> res){
+            client->async_call<void>([](acid::rpc::Result<> res){
                 ACID_LOG_DEBUG(g_logger) << res.toString();
-            },"add",0,n);
+            },"sleep");
+            //usleep(1000);
+//            client->async_call<int>([](acid::rpc::Result<int> res){
+//                ACID_LOG_DEBUG(g_logger) << res.toString();
+//            },"add",0,n);
 //            auto s = client->async_call<int>("add",0,n);
 //            ACID_LOG_DEBUG(g_logger) << s.get().toString();
             //auto rt = client->call<int>("add",0,n);
@@ -75,7 +78,12 @@ int main() {
         //s.wait();
         auto rt = client->call<int>("add",0,n);
         ACID_LOG_DEBUG(g_logger) << rt.toString();
-        sleep(3);
+        //sleep(3);
+        //client->close();
+        client->setTimeout(1000);
+        auto sl = client->call<void>("sleep");
+        ACID_LOG_DEBUG(g_logger) << "sleep 2s " << sl.toString();
+        //sleep(100);
         //client->close();
     });
 }
