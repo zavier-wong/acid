@@ -18,7 +18,6 @@ Scheduler::Scheduler(size_t threads, const std::string &name)
     t_scheduler = this;
 }
 Scheduler::~Scheduler() {
-    stop();
     ACID_ASSERT(m_stop);
     if(GetThis() == this){
         t_scheduler = nullptr;
