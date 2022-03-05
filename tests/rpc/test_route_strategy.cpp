@@ -10,7 +10,7 @@ std::vector<int> list{1, 2, 3, 4, 5};
 
 void test_random() {
     acid::rpc::RouteStrategy<int>::ptr strategy =
-            acid::rpc::RouteEngine<int>::queryStrategy(acid::rpc::RouteStrategy<int>::Random);
+            acid::rpc::RouteEngine<int>::queryStrategy(acid::rpc::Strategy::Random);
 
     ACID_LOG_DEBUG(g_logger) << "random";
     for ([[maybe_unused]] auto i: list) {
@@ -21,7 +21,7 @@ void test_random() {
 
 void test_poll() {
     acid::rpc::RouteStrategy<int>::ptr strategy =
-            acid::rpc::RouteEngine<int>::queryStrategy(acid::rpc::RouteStrategy<int>::Polling);
+            acid::rpc::RouteEngine<int>::queryStrategy(acid::rpc::Strategy::Polling);
 
     ACID_LOG_DEBUG(g_logger) << "Poll";
     for ([[maybe_unused]] auto i: list) {
@@ -31,7 +31,7 @@ void test_poll() {
 }
 void test_hash() {
     acid::rpc::RouteStrategy<int>::ptr strategy =
-            acid::rpc::RouteEngine<int>::queryStrategy(acid::rpc::RouteStrategy<int>::HashIP);
+            acid::rpc::RouteEngine<int>::queryStrategy(acid::rpc::Strategy::HashIP);
 
     ACID_LOG_DEBUG(g_logger) << "Hash";
     for ([[maybe_unused]] auto i: list) {
