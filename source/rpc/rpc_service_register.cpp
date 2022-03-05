@@ -92,7 +92,7 @@ Protocol::ptr RpcServiceRegistry::handleRegisterService(Protocol::ptr p, Address
     std::string serviceAddress = address->toString();
     std::string serviceName = p->getContent();
 
-    RWMutexType::WriteLock lock(m_mutex);
+    MutexType::Lock lock(m_mutex);
     auto it = m_services.emplace(serviceName, serviceAddress);
     m_iters[serviceAddress].push_back(it);
     lock.unlock();
@@ -104,12 +104,13 @@ Protocol::ptr RpcServiceRegistry::handleRegisterService(Protocol::ptr p, Address
     s << res;
     s.reset();
 
-    Protocol::ptr proto = Protocol::Create(Protocol::MsgType::RPC_SERVICE_REGISTER_RESPONSE, s.toString());
+    Protocol::ptr proto =
+            Protocol::Create(Protocol::MsgType::RPC_SERVICE_REGISTER_RESPONSE, s.toString());
     return proto;
 }
 
 void RpcServiceRegistry::handleUnregisterService(Address::ptr address) {
-    RWMutexType::WriteLock lock(m_mutex);
+    MutexType::Lock lock(m_mutex);
     auto it = m_iters.find(address->toString());
     if (it == m_iters.end()) {
         return;
@@ -126,7 +127,7 @@ Protocol::ptr RpcServiceRegistry::handleDiscoverService(Protocol::ptr p) {
     std::vector<Result<std::string>> result;
     ByteArray byteArray;
 
-    RWMutexType::ReadLock lock(m_mutex);
+    MutexType::Lock lock(m_mutex);
     m_services.equal_range(serviceName);
     auto range = m_services.equal_range(serviceName);
     uint32_t cnt = 0;
@@ -154,7 +155,8 @@ Protocol::ptr RpcServiceRegistry::handleDiscoverService(Protocol::ptr p) {
         s << result[i];
     }
     s.reset();
-    Protocol::ptr proto = Protocol::Create(Protocol::MsgType::RPC_SERVICE_DISCOVER_RESPONSE, s.toString());
+    Protocol::ptr proto =
+            Protocol::Create(Protocol::MsgType::RPC_SERVICE_DISCOVER_RESPONSE, s.toString());
     return proto;
 }
 

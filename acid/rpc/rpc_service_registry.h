@@ -22,7 +22,7 @@ namespace acid::rpc {
 class RpcServiceRegistry : public TcpServer {
 public:
     using ptr = std::shared_ptr<RpcServiceRegistry>;
-    using RWMutexType = RWMutex;
+    using MutexType = CoMutex;
     RpcServiceRegistry(IOManager* worker = IOManager::GetThis(),
                         IOManager* accept_worker = IOManager::GetThis());
 
@@ -91,7 +91,7 @@ private:
     std::multimap<std::string, std::string> m_services;
     // 维护服务地址到迭代器的映射
     std::map<std::string, std::vector<std::multimap<std::string, std::string>::iterator>> m_iters;
-    RWMutexType m_mutex;
+    MutexType m_mutex;
     // 允许心跳超时的时间 默认 40s
     uint64_t m_AliveTime = 40'000;
 };

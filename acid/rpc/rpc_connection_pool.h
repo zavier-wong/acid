@@ -14,10 +14,10 @@ namespace acid::rpc {
 /**
  * @brief RPC客户端连接池
  */
-class RpcConnectionPool {
+class RpcConnectionPool : public std::enable_shared_from_this<RpcConnectionPool> {
 public:
     using ptr = std::shared_ptr<RpcConnectionPool>;
-    using MutexType = Mutex;
+    using MutexType = CoMutex;
 
     RpcConnectionPool(uint64_t timeout_ms = -1);
     ~RpcConnectionPool();
@@ -38,9 +38,8 @@ public:
         std::vector<std::string> addrs = discover_impl(name);
         if (addrs.size()) {
             // 选择客户端负载均衡策略，根据路由策略选择服务地址
-            acid::rpc::RouteStrategy<std::string>::ptr strategy =
-                    acid::rpc::RouteEngine<std::string>::queryStrategy(
-                            acid::rpc::RouteStrategy<std::string>::Random);
+            RouteStrategy<std::string>::ptr strategy =
+                    RouteEngine<std::string>::queryStrategy(Strategy::Random);
             const std::string& ip = strategy->select(addrs);
             Address::ptr address = Address::LookupAny(ip);
             // 选择的服务地址有效
@@ -67,9 +66,10 @@ public:
         std::function<Result<R>()> task = [name, ps..., this] () -> Result<R> {
             return call<R>(name, ps...);
         };
-
-        acid::IOManager::GetThis()->submit([callback, task]{
+        RpcConnectionPool::ptr self = shared_from_this();
+        acid::IOManager::GetThis()->submit([callback, task, self]() mutable {
             callback(task());
+            self = nullptr;
         });
     }
     /**
@@ -84,8 +84,10 @@ public:
             return call<R>(name, ps...);
         };
         auto promise = std::make_shared<std::promise<Result<R>>>();
-        acid::IOManager::GetThis()->submit([task, promise]{
+        RpcConnectionPool::ptr self = shared_from_this();
+        acid::IOManager::GetThis()->submit([task, promise, self]() mutable {
             promise->set_value(task());
+            self = nullptr;
         });
         return promise->get_future();
     }
@@ -136,9 +138,8 @@ public:
         }
 
         // 选择客户端负载均衡策略，根据路由策略选择服务地址
-        acid::rpc::RouteStrategy<std::string>::ptr strategy =
-                acid::rpc::RouteEngine<std::string>::queryStrategy(
-                        acid::rpc::RouteStrategy<std::string>::Random);
+        RouteStrategy<std::string>::ptr strategy =
+                RouteEngine<std::string>::queryStrategy(Strategy::Random);
 
         if (addrs.size()) {
             const std::string& ip = strategy->select(addrs);
