@@ -17,6 +17,14 @@
 #include <vector>
 
 namespace acid::rpc {
+enum class Strategy {
+    //随机算法
+    Random,
+    //轮询算法
+    Polling,
+    //源地址hash算法
+    HashIP
+};
 /**
  * @brief 路由策略接口
  * @details 通用类型负载均衡路由引擎（含随机、轮询、哈希）, 由客户端使用，在客户端实现负载均衡
@@ -26,14 +34,6 @@ class RouteStrategy {
 public:
     using ptr = std::shared_ptr<RouteStrategy>;
     virtual ~RouteStrategy() {}
-    enum Strategy {
-        //随机算法
-        Random,
-        //轮询算法
-        Polling,
-        //源地址hash算法
-        HashIP
-    };
     /**
     * @brief负载策略算法
     * @param list 原始列表
@@ -127,13 +127,13 @@ namespace impl {
 template<class T>
 class RouteEngine {
 public:
-    static typename RouteStrategy<T>::ptr queryStrategy(typename RouteStrategy<T>::Strategy routeStrategyEnum) {
+    static typename RouteStrategy<T>::ptr queryStrategy(Strategy routeStrategyEnum) {
         switch (routeStrategyEnum){
-            case RouteStrategy<T>::Random:
+            case Strategy::Random:
                 return s_randomRouteStrategy;
-            case RouteStrategy<T>::Polling:
+            case Strategy::Polling:
                 return std::make_shared<impl::PollingRouteStrategyImpl<T>>();
-            case RouteStrategy<T>::HashIP:
+            case Strategy::HashIP:
                 return s_hashIPRouteStrategy ;
             default:
                 return s_randomRouteStrategy ;
