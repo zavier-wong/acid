@@ -7,10 +7,10 @@
 #include <memory>
 #include <functional>
 #include <future>
-#include "acid/ds/safe_queue.h"
 #include "acid/io_manager.h"
 #include "acid/net/socket.h"
 #include "acid/net/socket_stream.h"
+#include "acid/sync.h"
 #include "protocol.h"
 #include "route_strategy.h"
 #include "rpc.h"
@@ -34,11 +34,17 @@ void package_params(Serializer& s, const std::tuple<Args...>& t) {
 
 /**
  * @brief RPC客户端
+ * @details
+ * 开启一个 send 协程，通过 Channel 接收调用请求，并转发 request 请求给服务器。
+ * 开启一个 recv 协程，负责接收服务器发送的 response 响应并通过序列号获取对应调用者的 Channel，
+ * 将 response 放入 Channel 唤醒调用者。
+ * 所有调用者的 call 请求将通过 Channel 发送给 send 协程， 然后开启一个 Channel 用于接收 response 响应，
+ * 并将请求序列号与自己的 Channel 关联起来。
  */
-class RpcClient {
+class RpcClient : public std::enable_shared_from_this<RpcClient> {
 public:
     using ptr = std::shared_ptr<RpcClient>;
-    using MutexType = Mutex;
+    using MutexType = CoMutex;
 
     RpcClient();
 
@@ -88,7 +94,7 @@ public:
     }
 
     /**
-     * @brief 异步远程过程调用回调模式
+     * @brief 异步回调模式
      * @param[in] callback 回调函数
      * @param[in] name 函数名
      * @param[in] ps 可变参
@@ -99,14 +105,15 @@ public:
         std::function<Result<R>()> task = [name, ps..., this] () -> Result<R> {
             return call<R>(name, ps...);
         };
-
-        acid::IOManager::GetThis()->submit([callback, task]{
+        RpcClient::ptr self = shared_from_this();
+        acid::IOManager::GetThis()->submit([callback, task, self]() mutable {
             callback(task());
+            self = nullptr;
         });
     }
 
     /**
-     * @brief 异步调用
+     * @brief 异步 future 调用
      */
     template<typename R,typename... Params>
     std::future<Result<R>> async_call(const std::string& name, Params&& ... ps) {
@@ -114,8 +121,10 @@ public:
             return call<R>(name, ps...);
         };
         auto promise = std::make_shared<std::promise<Result<R>>>();
-        acid::IOManager::GetThis()->submit([task, promise]{
+        RpcClient::ptr self = shared_from_this();
+        acid::IOManager::GetThis()->submit([task, promise, self]() mutable {
             promise->set_value(task());
+            self = nullptr;
         });
         return promise->get_future();
     }
@@ -124,8 +133,17 @@ public:
         return m_session->getSocket();
     }
 private:
+    /**
+     * @brief rpc 连接对象的发送协程，通过 Channel 收集调用请求，并转发请求给服务器。
+     */
     void handleSend();
+    /**
+     * @brief rpc 连接对象的接收协程，负责接收服务器发送的 response 响应并根据响应类型进行处理
+     */
     void handleRecv();
+    /**
+     * @brief 通过序列号获取对应调用者的 Channel，将 response 放入 Channel 唤醒调用者
+     */
     void handleMethodResponse(Protocol::ptr response);
     /**
      * @brief 实际调用
@@ -141,62 +159,49 @@ private:
             return val;
         }
 
-        Protocol::ptr request;
-
-        std::map<uint32_t, std::pair<Fiber::ptr, Protocol::ptr>>::iterator it;
-        Fiber::ptr self = Fiber::GetThis();
+        // 开启一个 Channel 接收调用结果
+        Channel<Protocol::ptr> recvChan(1);
+        // 本次调用的序列号
+        uint32_t id = 0;
 
         {
             MutexType::Lock lock(m_mutex);
-            request = Protocol::Create(Protocol::MsgType::RPC_METHOD_REQUEST, s->toString(),m_sequenceId);
-            it = m_responseHandle.emplace(m_sequenceId++, std::make_pair(self, nullptr)).first;
+            id = m_sequenceId;
+            // 将请求序列号与接收 Channel 关联
+            m_responseHandle.emplace(m_sequenceId, recvChan);
+            ++m_sequenceId;
         }
+
+        // 创建请求协议，附带上请求 id
+        Protocol::ptr request =
+                Protocol::Create(Protocol::MsgType::RPC_METHOD_REQUEST,s->toString(), id);
+
+        // 向 send 协程的 Channel 发送消息
+        m_chan << request;
 
         acid::Timer::ptr timer;
-        std::shared_ptr<int> timeCondition(new int{0});
+        bool timeout = false;
         if( m_timeout != (uint64_t)-1 ){
-            std::weak_ptr<int> weakPtr(timeCondition);
-            acid::IOManager* ioManager = acid::IOManager::GetThis();
-            timer = ioManager->addConditionTimer(m_timeout,[weakPtr, ioManager, self, it, this]() mutable {
-                auto t = weakPtr.lock();
-                if(!t || *t){
-                    return ;
-                }
-
-                {
-                    MutexType::Lock lock(m_mutex);
-                    *t = ETIMEDOUT;
-                    if (!m_isClose) {
-                        m_responseHandle.erase(it);
-                    }
-                    ioManager->submit(self);
-                }
-
-            },weakPtr);
+            // 如果调用超时则关闭接收 Channel
+            timer = IOManager::GetThis()->addTimer(m_timeout,[recvChan, &timeout]() mutable {
+                timeout = true;
+                recvChan.close();
+            });
         }
 
-        m_queue.push(request);
-        // 让出协程，等待调用结果
-        Fiber::YieldToHold();
+        Protocol::ptr response;
+        // 等待 response，Channel内部会挂起协程，如果有消息到达或者被关闭则会被唤醒
+        recvChan >> response;
 
         if(timer){
             timer->cancel();
         }
-        if(*timeCondition){
+
+        if (timeout) {
             // 超时
             val.setCode(RPC_TIMEOUT);
             val.setMsg("call timeout");
             return val;
-        }
-
-        Protocol::ptr response;
-
-        {
-            MutexType::Lock lock(m_mutex);
-            response = m_isClose ? nullptr : it->second.second;
-            if (!m_isClose) {
-                m_responseHandle.erase(it);
-            }
         }
 
         if (!response) {
@@ -204,6 +209,7 @@ private:
             val.setMsg("socket closed");
             return val;
         }
+
         if (response->getContent().empty()) {
             val.setCode(RPC_NO_METHOD);
             val.setMsg("Method not find");
@@ -217,22 +223,20 @@ private:
     }
 
 private:
-    std::atomic_bool m_isClose = true;
-    std::atomic_bool m_isHearClose = true;
+    bool m_isClose = true;
+    bool m_isHearClose = true;
     /// 超时时间
     uint64_t m_timeout = -1;
     /// 服务器的连接
     RpcSession::ptr m_session;
     /// 序列号
     uint32_t m_sequenceId = 0;
-    /// 发送mutex
-    MutexType m_sendMutex;
-    /// 序列号到对应的协程映射
-    std::map<uint32_t, std::pair<Fiber::ptr, Protocol::ptr>> m_responseHandle;
+    /// 序列号到对应调用者协程的 Channel 映射
+    std::map<uint32_t, Channel<Protocol::ptr>> m_responseHandle;
     /// m_responseHandle 的 mutex
     MutexType m_mutex;
-    /// 消息发送队列
-    SafeQueue<Protocol::ptr> m_queue;
+    /// 消息发送通道
+    Channel<Protocol::ptr> m_chan;
     /// service provider心跳定时器
     Timer::ptr m_heartTimer;
 };

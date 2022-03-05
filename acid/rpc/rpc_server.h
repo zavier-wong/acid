@@ -9,6 +9,7 @@
 #include "acid/net/socket_stream.h"
 #include "acid/net/tcp_server.h"
 #include "acid/log.h"
+#include "acid/sync.h"
 #include "acid/traits.h"
 #include "protocol.h"
 #include "rpc.h"
@@ -128,26 +129,28 @@ protected:
      */
     void update(Timer::ptr& heartTimer, Socket::ptr client);
     /**
-     * @brief 处理客户端请求
+     * @brief 处理客户端连接
      * @param[in] client 客户端套接字
      */
     void handleClient(Socket::ptr client) override;
-
+    /**
+     * @brief 处理客户端请求
+     * @param[in] client 客户端套接字
+     */
+    void handleRequest(Protocol::ptr proto, Channel<Protocol::ptr> chan);
     /**
      * @brief 处理客户端过程调用请求
      */
-    Protocol::ptr handleMethodCall(Protocol::ptr p);
-
+    Protocol::ptr handleMethodCall(Protocol::ptr proto);
     /**
      * 处理心跳包
      */
-    Protocol::ptr handleHeartbeatPacket(Protocol::ptr p);
+    Protocol::ptr handleHeartbeatPacket(Protocol::ptr proto);
 private:
     /// 保存注册的函数
     std::map<std::string, std::function<void(Serializer::ptr, const std::string&)>> m_handlers;
     /// 服务中心连接
     RpcSession::ptr m_registry;
-
     /// 服务中心心跳定时器
     Timer::ptr m_heartTimer;
     /// 开放服务端口

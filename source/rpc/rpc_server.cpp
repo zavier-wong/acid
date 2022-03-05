@@ -1,11 +1,31 @@
 //
 // Created by zavier on 2022/1/13.
 //
-
+#include "acid/config.h"
 #include "acid/rpc/rpc_server.h"
 
 namespace acid::rpc {
 static Logger::ptr g_logger = ACID_LOG_NAME("system");
+
+static ConfigVar<size_t>::ptr g_channel_capacity =
+        Config::Lookup<size_t>("rpc.server.channel_capacity",1024,
+                               "rpc server channel capacity");
+
+static uint64_t s_channel_capacity = 1;
+
+struct _RpcServerIniter{
+    _RpcServerIniter(){
+        s_channel_capacity = g_channel_capacity->getValue();
+        g_channel_capacity->addListener([](const size_t& old_val, const size_t& new_val){
+            ACID_LOG_INFO(g_logger) << "rpc client channel capacity changed from "
+                                    << old_val << " to " << new_val;
+            s_channel_capacity = new_val;
+        });
+    }
+};
+
+static _RpcServerIniter s_initer;
+
 RpcServer::RpcServer(IOManager *worker, IOManager *accept_worker)
         : TcpServer(worker, accept_worker) {
 
@@ -67,20 +87,10 @@ bool RpcServer::start() {
     return TcpServer::start();
 }
 
-void RpcServer::handleClient(Socket::ptr client) {
-    ACID_LOG_DEBUG(g_logger) << "handleClient: " << client->toString();
-    RpcSession::ptr session = std::make_shared<RpcSession>(client);
-    Timer::ptr heartTimer;
-    // 开启心跳定时器
-    update(heartTimer, client);
-    while (true) {
-        Protocol::ptr request = session->recvProtocol();
-        if (!request) {
-            break;
-        }
-        // 更新定时器
-        update(heartTimer, client);
-
+void RpcServer::handleRequest(Protocol::ptr request, Channel<Protocol::ptr> chan) {
+    // 通过智能指针延长生命周期
+    auto self = shared_from_this();
+    IOManager::GetThis()->submit([request, chan, self, this]() mutable {
         Protocol::ptr response;
 
         Protocol::MsgType type = request->getMsgType();
@@ -96,11 +106,39 @@ void RpcServer::handleClient(Socket::ptr client) {
                 break;
         }
 
-        if (!response) {
+        if (response) {
+            chan << response;
+        }
+        self = nullptr;
+    });
+}
+
+void RpcServer::handleClient(Socket::ptr client) {
+    ACID_LOG_DEBUG(g_logger) << "handleClient: " << client->toString();
+    RpcSession::ptr session = std::make_shared<RpcSession>(client);
+    Channel<Protocol::ptr> sendChan(s_channel_capacity);
+    // 开一个协程通过 Channel 收集响应并发送给调用方
+    IOManager::GetThis()->submit([sendChan, session]() mutable {
+        Protocol::ptr response;
+        while (sendChan >> response) {
+            session->sendProtocol(response);
+        }
+    });
+
+    Timer::ptr heartTimer;
+    // 开启心跳定时器
+    update(heartTimer, client);
+    while (true) {
+        Protocol::ptr request = session->recvProtocol();
+        if (!request) {
             break;
         }
-        session->sendProtocol(response);
+        // 更新定时器
+        update(heartTimer, client);
+        // 处理请求
+        handleRequest(request, sendChan);
     }
+    sendChan.close();
 }
 
 void RpcServer::update(Timer::ptr& heartTimer, Socket::ptr client) {
