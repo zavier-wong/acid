@@ -87,44 +87,11 @@ bool RpcServer::start() {
     return TcpServer::start();
 }
 
-void RpcServer::handleRequest(Protocol::ptr request, Channel<Protocol::ptr> chan) {
-    // 通过智能指针延长生命周期
-    auto self = shared_from_this();
-    IOManager::GetThis()->submit([request, chan, self, this]() mutable {
-        Protocol::ptr response;
-
-        Protocol::MsgType type = request->getMsgType();
-        switch (type) {
-            case Protocol::MsgType::HEARTBEAT_PACKET:
-                response = handleHeartbeatPacket(request);
-                break;
-            case Protocol::MsgType::RPC_METHOD_REQUEST:
-                response = handleMethodCall(request);
-                break;
-            default:
-                ACID_LOG_DEBUG(g_logger) << "protocol:" << request->toString();
-                break;
-        }
-
-        if (response) {
-            chan << response;
-        }
-        self = nullptr;
-    });
-}
-
 void RpcServer::handleClient(Socket::ptr client) {
     ACID_LOG_DEBUG(g_logger) << "handleClient: " << client->toString();
     RpcSession::ptr session = std::make_shared<RpcSession>(client);
-    Channel<Protocol::ptr> sendChan(s_channel_capacity);
-    // 开一个协程通过 Channel 收集响应并发送给调用方
-    IOManager::GetThis()->submit([sendChan, session]() mutable {
-        Protocol::ptr response;
-        while (sendChan >> response) {
-            session->sendProtocol(response);
-        }
-    });
 
+    CoMutex mutex;
     Timer::ptr heartTimer;
     // 开启心跳定时器
     update(heartTimer, client);
@@ -135,10 +102,32 @@ void RpcServer::handleClient(Socket::ptr client) {
         }
         // 更新定时器
         update(heartTimer, client);
-        // 处理请求
-        handleRequest(request, sendChan);
+
+        auto self = shared_from_this();
+        // 将任务放入协程池
+        IOManager::GetThis()->submit([request, session, &mutex, self, this]() mutable {
+            Protocol::ptr response;
+            Protocol::MsgType type = request->getMsgType();
+            switch (type) {
+                case Protocol::MsgType::HEARTBEAT_PACKET:
+                    response = handleHeartbeatPacket(request);
+                    break;
+                case Protocol::MsgType::RPC_METHOD_REQUEST:
+                    response = handleMethodCall(request);
+                    break;
+                default:
+                    ACID_LOG_DEBUG(g_logger) << "protocol:" << request->toString();
+                    break;
+            }
+
+            if (response) {
+                CoMutex::Lock lock(mutex);
+                session->sendProtocol(response);
+            }
+            self = nullptr;
+        });
     }
-    sendChan.close();
+
 }
 
 void RpcServer::update(Timer::ptr& heartTimer, Socket::ptr client) {

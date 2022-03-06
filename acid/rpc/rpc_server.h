@@ -134,11 +134,6 @@ protected:
      */
     void handleClient(Socket::ptr client) override;
     /**
-     * @brief 处理客户端请求
-     * @param[in] client 客户端套接字
-     */
-    void handleRequest(Protocol::ptr proto, Channel<Protocol::ptr> chan);
-    /**
      * @brief 处理客户端过程调用请求
      */
     Protocol::ptr handleMethodCall(Protocol::ptr proto);
