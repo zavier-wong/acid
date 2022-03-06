@@ -163,12 +163,12 @@ private:
         Channel<Protocol::ptr> recvChan(1);
         // 本次调用的序列号
         uint32_t id = 0;
-
+        std::map<uint32_t, Channel<Protocol::ptr>>::iterator it;
         {
             MutexType::Lock lock(m_mutex);
             id = m_sequenceId;
             // 将请求序列号与接收 Channel 关联
-            m_responseHandle.emplace(m_sequenceId, recvChan);
+            it = m_responseHandle.emplace(m_sequenceId, recvChan).first;
             ++m_sequenceId;
         }
 
@@ -195,6 +195,14 @@ private:
 
         if(timer){
             timer->cancel();
+        }
+
+        {
+            MutexType::Lock lock(m_mutex);
+            if (!m_isClose) {
+                // 删除序列号与 Channel 的映射
+                m_responseHandle.erase(it);
+            }
         }
 
         if (timeout) {

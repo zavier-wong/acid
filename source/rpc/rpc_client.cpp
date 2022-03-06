@@ -162,11 +162,6 @@ void RpcClient::handleMethodResponse(Protocol::ptr response) {
     Channel<Protocol::ptr> chan = it->second;
     // 对该 Channel 发送调用结果唤醒调用者
     chan << response;
-    if (!m_isClose) {
-        // 删除序列号与 Channel 的映射
-        m_responseHandle.erase(it);
-    }
-
 }
 
 }
