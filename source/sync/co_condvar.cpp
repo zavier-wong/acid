@@ -8,14 +8,13 @@
 
 namespace acid {
 void CoCondVar::notify() {
-    if (m_waitQueue.empty()) {
-        return;
-    }
     Fiber::ptr fiber;
-
     {
         // 获取一个等待的协程
         MutexType::Lock lock(m_mutex);
+        if (m_waitQueue.empty()) {
+            return;
+        }
         fiber = m_waitQueue.front();
         m_waitQueue.pop();
         if (m_timer) {
@@ -49,7 +48,8 @@ void CoCondVar::notifyAll() {
 
 void CoCondVar::wait() {
     Fiber::ptr self = Fiber::GetThis();
-    {
+
+    IOManager::GetThis()->submit([self, this]{
         MutexType::Lock lock(m_mutex);
         // 将自己加入等待队列
         m_waitQueue.push(self);
@@ -57,14 +57,15 @@ void CoCondVar::wait() {
             // 加入一个空任务定时器，不让调度器退出
             m_timer = IOManager::GetThis()->addTimer(-1,[]{},true);
         }
-    }
+    });
     // 让出协程
     Fiber::YieldToHold();
 }
 
 void CoCondVar::wait(CoMutex::Lock& lock) {
     Fiber::ptr self = Fiber::GetThis();
-    {
+
+    IOManager::GetThis()->submit([ self, &lock, this]{
         MutexType::Lock lock1(m_mutex);
         // 将自己加入等待队列
         m_waitQueue.push(self);
@@ -72,9 +73,10 @@ void CoCondVar::wait(CoMutex::Lock& lock) {
             // 加入一个空任务定时器，不让调度器退出
             m_timer = IOManager::GetThis()->addTimer(-1,[]{},true);
         }
-    }
-    // 先解锁
-    lock.unlock();
+        // 先解锁
+        lock.unlock();
+    });
+
     // 让出协程
     Fiber::YieldToHold();
     // 重新获取锁
