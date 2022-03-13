@@ -17,11 +17,8 @@ cd yaml-cpp
 mkdir build
 cd build
 cmake ..
-make #make时如果编译test错误可以忽略
-sudo cp libyaml-cpp.a /usr/local/lib
-cd ..
-sudo cp -r include/yaml-cpp /usr/local/include
-cd ..
+sudo make install
+cd ../..
 ```
 
 3.构建项目 / Build
