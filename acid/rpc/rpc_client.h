@@ -232,7 +232,7 @@ private:
 
 private:
     bool m_isClose = true;
-    bool m_isHearClose = true;
+    bool m_isHeartClose = true;
     /// 超时时间
     uint64_t m_timeout = -1;
     /// 服务器的连接

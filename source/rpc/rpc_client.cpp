@@ -43,7 +43,7 @@ void RpcClient::close() {
         return;
     }
 
-    m_isHearClose = true;
+    m_isHeartClose = true;
     m_isClose = true;
     m_chan.close();
 
@@ -74,7 +74,7 @@ bool RpcClient::connect(Address::ptr address){
         m_session = nullptr;
         return false;
     }
-    m_isHearClose = false;
+    m_isHeartClose = false;
     m_isClose = false;
     m_session = std::make_shared<RpcSession>(sock);
     IOManager::GetThis()->submit([this]{
@@ -87,7 +87,7 @@ bool RpcClient::connect(Address::ptr address){
 
     m_heartTimer = IOManager::GetThis()->addTimer(30'000, [this]{
         ACID_LOG_DEBUG(g_logger) << "heart beat";
-        if (m_isHearClose) {
+        if (m_isHeartClose) {
             ACID_LOG_DEBUG(g_logger) << "Server closed";
             close();
         }
@@ -95,7 +95,7 @@ bool RpcClient::connect(Address::ptr address){
         Protocol::ptr proto = Protocol::Create(Protocol::MsgType::HEARTBEAT_PACKET, "");
         // 向 send 协程的 Channel 发送消息
         m_chan << proto;
-        m_isHearClose = true;
+        m_isHeartClose = true;
     }, true);
     return true;
 }
@@ -134,7 +134,7 @@ void RpcClient::handleRecv() {
         // 判断响应类型进行对应的处理
         switch (type) {
             case Protocol::MsgType::HEARTBEAT_PACKET:
-                m_isHearClose = false;
+                m_isHeartClose = false;
                 break;
             case Protocol::MsgType::RPC_METHOD_RESPONSE:
                 // 处理调用结果
