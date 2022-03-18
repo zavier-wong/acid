@@ -53,6 +53,9 @@ void CoMutex::unlock() {
     m_mutex.unlock();
     m_gaurd.unlock();
     if (fiber) {
+        while(fiber->getState() != Fiber::HOLD) {
+            usleep(1);
+        }
         // 将等待的协程重新加入调度
         IOManager::GetThis()->submit(fiber);
     }

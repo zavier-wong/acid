@@ -25,6 +25,9 @@ void CoCondVar::notify() {
     }
     // 将协程重新加入调度
     if (fiber) {
+        while(fiber->getState() != Fiber::HOLD) {
+            usleep(1);
+        }
         IOManager::GetThis()->submit(fiber);
     }
 }
@@ -36,6 +39,9 @@ void CoCondVar::notifyAll() {
         Fiber::ptr fiber = m_waitQueue.front();
         m_waitQueue.pop();
         if (fiber) {
+            while(fiber->getState() != Fiber::HOLD) {
+                usleep(1);
+            }
             IOManager::GetThis()->submit(fiber);
         }
     }
