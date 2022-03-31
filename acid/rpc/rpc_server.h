@@ -15,47 +15,6 @@
 #include "rpc.h"
 #include "rpc_session.h"
 namespace acid::rpc {
-
-/**
- * @brief 调用帮助类，展开 tuple 转发给函数
- * @param[in] func 调用的函数
- * @param[in] args 打包为 tuple 的函数参数
- * @param[in] index 编译期辅助展开 tuple
- * @return 返回函数调用结果
- */
-template<typename Function, typename Tuple, std::size_t... Index>
-auto invoke_impl(Function&& func, Tuple&& args, std::index_sequence<Index...>)
-{
-    return func(std::get<Index>(std::forward<Tuple>(args))...);
-}
-/**
- * @brief 调用帮助类
- * @param[in] func 调用的函数
- * @param[in] args 打包为 tuple 的函数参数
- * @return 返回函数调用结果
- */
-template<typename Function, typename Tuple>
-auto invoke(Function&& func, Tuple&& args)
-{
-    constexpr auto size = std::tuple_size<typename std::decay<Tuple>::type>::value;
-    return invoke_impl(std::forward<Function>(func), std::forward<Tuple>(args), std::make_index_sequence<size>{});
-}
-/**
- * @brief 调用帮助类，判断返回类型，如果是 void 转换为 int8_t
- * @param[in] f 调用的函数
- * @param[in] args 打包为 tuple 的函数参数
- * @return 返回函数调用结果
- */
-template<typename R, typename F, typename ArgsTuple>
-auto call_helper(F f, ArgsTuple args) {
-    if constexpr(std::is_same_v<R, void>) {
-        invoke(f, args);
-        return 0;
-    } else {
-        return invoke(f, args);
-    }
-}
-
 /**
  * @brief RPC服务端
  */
@@ -108,18 +67,28 @@ protected:
         typename function_traits<F>::stl_function_type func(fun);
         using Return = typename function_traits<F>::return_type;
         using Args = typename function_traits<F>::tuple_type;
-        constexpr size_t N = function_traits<F>::arity;
 
         acid::rpc::Serializer s(arg);
         // 反序列化字节流，存为参数tuple
-        Args args = s.getTuple<Args>(std::make_index_sequence<N>{});
+        Args args;
+        s >> args;
 
-        //通过包装函数调用
-        return_type_t<Return> r = call_helper<Return>(func, args);
+        return_type_t<Return> rt{};
+
+        constexpr auto size = std::tuple_size<typename std::decay<Args>::type>::value;
+        auto invoke = [&func, &args]<std::size_t... Index>(std::index_sequence<Index...>){
+            return func(std::get<Index>(std::forward<Args>(args))...);
+        };
+
+        if constexpr(std::is_same_v<Return, void>) {
+            invoke(std::make_index_sequence<size>{});
+        } else {
+            rt = invoke(std::make_index_sequence<size>{});
+        }
 
         Result<Return> val;
         val.setCode(acid::rpc::RPC_SUCCESS);
-        val.setVal(r);
+        val.setVal(rt);
         (*serializer) << val;
     }
     /**
