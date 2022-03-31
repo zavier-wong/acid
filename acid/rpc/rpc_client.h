@@ -16,22 +16,6 @@
 #include "rpc.h"
 #include "rpc_session.h"
 namespace acid::rpc {
-
-/**
- * @brief 将被打包为 tuple 的函数参数进行序列化
- */
-template<typename... Args>
-void package_params(Serializer& s, const std::tuple<Args...>& t) {
-    /**
-     * @brief 实际的序列化函数，利用折叠表达式展开参数包
-     */
-    const auto& package = []<typename Tuple, std::size_t... Index>
-    (Serializer& s, const Tuple& t, std::index_sequence<Index...>) {
-        (s << ... << std::get<Index>(t));
-    };
-    package(s, t, std::index_sequence_for<Args...>{});
-}
-
 /**
  * @brief RPC客户端
  * @details
@@ -73,10 +57,8 @@ public:
     Result<R> call(const std::string& name, Params... ps) {
         using args_type = std::tuple<typename std::decay<Params>::type...>;
         args_type args = std::make_tuple(ps...);
-
         Serializer::ptr s = std::make_shared<Serializer>();
-        (*s) << name;
-        package_params(*s, args);
+        (*s) << name << args;
         s->reset();
         return call<R>(s);
     }

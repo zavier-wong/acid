@@ -162,18 +162,6 @@ public:
     }
 
 public:
-    template<typename Tuple, std::size_t idx>
-    void getv(Serializer& s, Tuple& t) {
-        s >> std::get<idx>(t);
-    }
-
-    template<typename Tuple, std::size_t... N>
-    Tuple getTuple(std::index_sequence<N...>) {
-        Tuple t;
-        (getv<Tuple, N>(*this, t), ...);
-        return t;
-    }
-
     template<typename T>
     Serializer &operator >> (T& i){
         read(i);
@@ -186,6 +174,31 @@ public:
         return *this;
     }
 
+    template<typename... Args>
+    Serializer &operator >> (std::tuple<Args...>& t){
+        /**
+         * @brief 实际的反序列化函数，利用折叠表达式展开参数包
+         */
+        const auto& deserializer = [this]<typename Tuple, std::size_t... Index>
+        (Tuple& t, std::index_sequence<Index...>) {
+            ((*this) >> ... >> std::get<Index>(t));
+        };
+        deserializer(t, std::index_sequence_for<Args...>{});
+        return *this;
+    }
+
+    template<typename... Args>
+    Serializer &operator << (const std::tuple<Args...>& t){
+        /**
+         * @brief 实际的序列化函数，利用折叠表达式展开参数包
+         */
+        const auto& package = [this]<typename Tuple, std::size_t... Index>
+                (const Tuple& t, std::index_sequence<Index...>) {
+            ((*this) << ... << std::get<Index>(t));
+        };
+        package(t, std::index_sequence_for<Args...>{});
+        return *this;
+    }
 
     template<typename T>
     Serializer &operator >> (std::list<T>& v){
