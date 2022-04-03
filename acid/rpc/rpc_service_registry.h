@@ -93,7 +93,7 @@ private:
     std::map<std::string, std::vector<std::multimap<std::string, std::string>::iterator>> m_iters;
     MutexType m_mutex;
     // 允许心跳超时的时间 默认 40s
-    uint64_t m_AliveTime = 40'000;
+    uint64_t m_AliveTime;
 };
 
 

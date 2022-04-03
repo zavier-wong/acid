@@ -120,7 +120,7 @@ private:
     /// 开放服务端口
     uint32_t m_port;
     // 和客户端的心跳时间 默认 40s
-    uint64_t m_AliveTime = 40'000;
+    uint64_t m_AliveTime;
 };
 
 }

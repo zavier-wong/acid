@@ -2,6 +2,7 @@
 // Created by zavier on 2022/1/16.
 //
 
+#include "acid/config.h"
 #include "acid/log.h"
 #include "acid/rpc/rpc.h"
 #include "acid/rpc/rpc_service_registry.h"
@@ -10,8 +11,28 @@
 namespace acid::rpc {
 static Logger::ptr g_logger = ACID_LOG_NAME("system");
 
+static ConfigVar<uint64_t>::ptr g_heartbeat_timeout =
+        Config::Lookup<uint64_t>("rpc.registry.heartbeat_timeout",40'000,
+                                 "rpc registry heartbeat timeout (ms)");
+
+static uint64_t s_heartbeat_timeout = 0;
+
+struct _RpcRegistryIniter{
+    _RpcRegistryIniter(){
+        s_heartbeat_timeout = g_heartbeat_timeout->getValue();
+        g_heartbeat_timeout->addListener([](const uint64_t& old_val, const uint64_t& new_val){
+            ACID_LOG_INFO(g_logger) << "rpc registry heartbeat timeout changed from "
+                                    << old_val << " to " << new_val;
+            s_heartbeat_timeout = new_val;
+        });
+    }
+};
+
+static _RpcRegistryIniter s_initer;
+
 RpcServiceRegistry::RpcServiceRegistry(IOManager *worker, IOManager *accept_worker)
-        : TcpServer(worker, accept_worker) {
+        : TcpServer(worker, accept_worker)
+        , m_AliveTime(s_heartbeat_timeout){
     setName("RpcServiceRegistry");
 }
 

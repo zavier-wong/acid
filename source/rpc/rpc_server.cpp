@@ -7,19 +7,19 @@
 namespace acid::rpc {
 static Logger::ptr g_logger = ACID_LOG_NAME("system");
 
-static ConfigVar<size_t>::ptr g_channel_capacity =
-        Config::Lookup<size_t>("rpc.server.channel_capacity",1024,
-                               "rpc server channel capacity");
+static ConfigVar<uint64_t>::ptr g_heartbeat_timeout =
+        Config::Lookup<uint64_t>("rpc.server.heartbeat_timeout",40'000,
+                               "rpc server heartbeat timeout (ms)");
 
-static uint64_t s_channel_capacity = 1;
+static uint64_t s_heartbeat_timeout = 0;
 
 struct _RpcServerIniter{
     _RpcServerIniter(){
-        s_channel_capacity = g_channel_capacity->getValue();
-        g_channel_capacity->addListener([](const size_t& old_val, const size_t& new_val){
-            ACID_LOG_INFO(g_logger) << "rpc client channel capacity changed from "
+        s_heartbeat_timeout = g_heartbeat_timeout->getValue();
+        g_heartbeat_timeout->addListener([](const uint64_t& old_val, const uint64_t& new_val){
+            ACID_LOG_INFO(g_logger) << "rpc server heartbeat timeout changed from "
                                     << old_val << " to " << new_val;
-            s_channel_capacity = new_val;
+            s_heartbeat_timeout = new_val;
         });
     }
 };
@@ -27,7 +27,8 @@ struct _RpcServerIniter{
 static _RpcServerIniter s_initer;
 
 RpcServer::RpcServer(IOManager *worker, IOManager *accept_worker)
-        : TcpServer(worker, accept_worker) {
+        : TcpServer(worker, accept_worker)
+        , m_AliveTime(s_heartbeat_timeout){
 
 }
 bool RpcServer::bind(Address::ptr address) {
