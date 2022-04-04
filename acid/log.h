@@ -30,7 +30,7 @@
 #define ACID_LOG_ERROR(logger)  ACID_LOG_LEVEL(logger,acid::LogLevel::ERROR)
 #define ACID_LOG_FATAL(logger)  ACID_LOG_LEVEL(logger,acid::LogLevel::FATAL)
 
-#define LOG_DEBUG acid::LogMgr::GetInstance()->getLogger("root")
+#define LOG_DEBUG ACID_LOG_DEBUG(acid::LogMgr::GetInstance()->getLogger("root"))
 
 #define ACID_LOG_FMT_LEVEL(logger,level,fmt,...)    \
     if(level >= logger->getLevel())           \
