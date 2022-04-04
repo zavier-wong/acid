@@ -80,9 +80,14 @@ public:
         }
     }
 
+    template<class FiberOrCb>
+    [[maybe_unused]]
+    Scheduler* operator+(FiberOrCb&& fc) {
+        return submit(std::move(fc));
+    }
+
     static Scheduler* GetThis();
-    //static void SetThis(Scheduler* sc);
-    //static Fiber* GetMainFiber();
+
 protected:
     /**
      * @brief 通知协程调度器有任务了
