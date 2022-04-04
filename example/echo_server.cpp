@@ -44,6 +44,5 @@ void run(){
     echoServer->start();
 }
 int main(){
-    acid::IOManager ioManager(4,"Echo Server");
-    ioManager.submit(&run);
+    go run;
 }

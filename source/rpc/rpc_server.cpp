@@ -105,8 +105,8 @@ void RpcServer::handleClient(Socket::ptr client) {
         update(heartTimer, client);
 
         auto self = shared_from_this();
-        // 将任务放入协程池
-        IOManager::GetThis()->submit([request, session, &mutex, self, this]() mutable {
+        // 启动一个任务协程
+        go [request, session, &mutex, self, this]() mutable {
             Protocol::ptr response;
             Protocol::MsgType type = request->getMsgType();
             switch (type) {
@@ -126,7 +126,7 @@ void RpcServer::handleClient(Socket::ptr client) {
                 session->sendProtocol(response);
             }
             self = nullptr;
-        });
+        };
     }
 
 }

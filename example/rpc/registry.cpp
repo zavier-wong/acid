@@ -16,6 +16,5 @@ void Main() {
 }
 
 int main() {
-    acid::IOManager loop;
-    loop.submit(Main);
+    go Main;
 }

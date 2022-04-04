@@ -57,7 +57,7 @@ void CoMutex::unlock() {
             usleep(1);
         }
         // 将等待的协程重新加入调度
-        IOManager::GetThis()->submit(fiber);
+        go fiber;
     }
 }
 

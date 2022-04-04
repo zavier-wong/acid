@@ -32,7 +32,7 @@ void Main() {
 
     // 测试并发
     int n=0;
-    while(n != 1000) {
+    while(n != 10000) {
         n++;
         con->async_call<int>([](acid::rpc::Result<int> res){
             ACID_LOG_INFO(g_logger) << res.getVal();
@@ -43,6 +43,5 @@ void Main() {
 }
 
 int main() {
-    acid::IOManager loop;
-    loop.submit(Main);
+    go Main;
 }

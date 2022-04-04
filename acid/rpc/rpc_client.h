@@ -88,10 +88,10 @@ public:
             return call<R>(name, ps...);
         };
         RpcClient::ptr self = shared_from_this();
-        acid::IOManager::GetThis()->submit([callback, task, self]() mutable {
+        go [callback, task, self]() mutable {
             callback(task());
             self = nullptr;
-        });
+        };
     }
 
     /**
@@ -104,10 +104,10 @@ public:
         };
         auto promise = std::make_shared<std::promise<Result<R>>>();
         RpcClient::ptr self = shared_from_this();
-        acid::IOManager::GetThis()->submit([task, promise, self]() mutable {
+        go [task, promise, self]() mutable {
             promise->set_value(task());
             self = nullptr;
-        });
+        };
         return promise->get_future();
     }
 

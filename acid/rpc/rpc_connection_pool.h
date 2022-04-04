@@ -67,10 +67,10 @@ public:
             return call<R>(name, ps...);
         };
         RpcConnectionPool::ptr self = shared_from_this();
-        acid::IOManager::GetThis()->submit([callback, task, self]() mutable {
+        go [callback, task, self]() mutable {
             callback(task());
             self = nullptr;
-        });
+        };
     }
     /**
      * @brief 异步远程过程调用
@@ -85,10 +85,10 @@ public:
         };
         auto promise = std::make_shared<std::promise<Result<R>>>();
         RpcConnectionPool::ptr self = shared_from_this();
-        acid::IOManager::GetThis()->submit([task, promise, self]() mutable {
+        go [task, promise, self]() mutable {
             promise->set_value(task());
             self = nullptr;
-        });
+        };
         return promise->get_future();
     }
     /**

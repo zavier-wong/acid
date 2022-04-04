@@ -28,7 +28,7 @@ void CoCondVar::notify() {
         while(fiber->getState() != Fiber::HOLD) {
             usleep(1);
         }
-        IOManager::GetThis()->submit(fiber);
+        go fiber;
     }
 }
 
@@ -42,7 +42,7 @@ void CoCondVar::notifyAll() {
             while(fiber->getState() != Fiber::HOLD) {
                 usleep(1);
             }
-            IOManager::GetThis()->submit(fiber);
+            go fiber;
         }
     }
     // 删除定时器

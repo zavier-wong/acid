@@ -77,13 +77,14 @@ bool RpcClient::connect(Address::ptr address){
     m_isHeartClose = false;
     m_isClose = false;
     m_session = std::make_shared<RpcSession>(sock);
-    IOManager::GetThis()->submit([this]{
+    go [this] {
         // 开启 recv 协程
         handleRecv();
-    })->submit([this]{
+    };
+    go [this] {
         // 开启 send 协程
         handleSend();
-    });
+    };
 
     m_heartTimer = IOManager::GetThis()->addTimer(30'000, [this]{
         ACID_LOG_DEBUG(g_logger) << "heart beat";
