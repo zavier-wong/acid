@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <sys/epoll.h>
 #include <unistd.h>
+#include "acid/config.h"
 #include "acid/io_manager.h"
 #include "acid/log.h"
 #include "acid/macro.h"
@@ -15,6 +16,35 @@
 namespace acid{
 static Logger::ptr g_logger = ACID_LOG_NAME("system");
 
+static ConfigVar<uint64_t>::ptr g_scheduler_threads =
+        Config::Lookup<uint64_t>("scheduler.threads",4,
+                                 "scheduler default threads");
+static ConfigVar<std::string>::ptr g_scheduler_name =
+        Config::Lookup<std::string>("scheduler.name","main",
+                                 "scheduler default name");
+
+static uint64_t s_scheduler_threads = 0;
+static std::string s_scheduler_name;
+
+struct _IOManagerIniter{
+    _IOManagerIniter(){
+        s_scheduler_threads = g_scheduler_threads->getValue();
+        s_scheduler_name = g_scheduler_name->getValue();
+
+        g_scheduler_threads->addListener([](const uint64_t& old_val, const uint64_t& new_val){
+            ACID_LOG_INFO(g_logger) << "scheduler threads from "
+                                    << old_val << " to " << new_val;
+            s_scheduler_threads = new_val;
+        });
+        g_scheduler_name->addListener([](const std::string& old_val, const std::string& new_val){
+            ACID_LOG_INFO(g_logger) << "scheduler name from "
+                                    << old_val << " to " << new_val;
+            s_scheduler_name = new_val;
+        });
+    }
+};
+
+static _IOManagerIniter s_initer;
 
 IOManager::FdContext::EventContext &IOManager::FdContext::getContext(IOManager::Event event) {
 
@@ -248,7 +278,10 @@ bool IOManager::cancelAllEvent(int fd) {
 }
 
 IOManager *IOManager::GetThis() {
-    return dynamic_cast<IOManager*>(Scheduler::GetThis());
+    /// 默认调度器
+    static IOManager s_scheduler(s_scheduler_threads, s_scheduler_name);
+    IOManager* iom = dynamic_cast<IOManager*>(Scheduler::GetThis());
+    return iom? iom: &s_scheduler;
 }
 
 bool IOManager::stopping() {

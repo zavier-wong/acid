@@ -71,6 +71,7 @@ private:
 
     bool stopping(uint64_t &timeout);
 };
-
+#define go (*acid::IOManager::GetThis()) +
+#define Go  (*acid::IOManager::GetThis()) + [=]()mutable
 }
 #endif //ACID_IO_MANAGER_H
