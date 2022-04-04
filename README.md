@@ -321,8 +321,7 @@ void Main() {
 }
 
 int main() {
-    acid::IOManager loop;
-    loop.submit(Main);
+    go Main;
 }
 ```
 rpc 服务提供者
@@ -364,8 +363,7 @@ void Main() {
 }
 
 int main() {
-    acid::IOManager loop;
-    loop.submit(Main);
+    go Main;
 }
 ```
 rpc 服务消费者，并不直接用RpcClient，而是采用更高级的封装，RpcConnectionPool。
@@ -410,8 +408,7 @@ void Main() {
 }
 
 int main() {
-    acid::IOManager loop;
-    loop.submit(Main);
+    go Main;
 }
 ```
 
