@@ -25,9 +25,6 @@ void CoCondVar::notify() {
     }
     // 将协程重新加入调度
     if (fiber) {
-        while(fiber->getState() != Fiber::HOLD) {
-            usleep(1);
-        }
         go fiber;
     }
 }
@@ -39,9 +36,6 @@ void CoCondVar::notifyAll() {
         Fiber::ptr fiber = m_waitQueue.front();
         m_waitQueue.pop();
         if (fiber) {
-            while(fiber->getState() != Fiber::HOLD) {
-                usleep(1);
-            }
             go fiber;
         }
     }
@@ -54,8 +48,7 @@ void CoCondVar::notifyAll() {
 
 void CoCondVar::wait() {
     Fiber::ptr self = Fiber::GetThis();
-
-    IOManager::GetThis()->submit([self, this]{
+    {
         MutexType::Lock lock(m_mutex);
         // 将自己加入等待队列
         m_waitQueue.push(self);
@@ -63,15 +56,14 @@ void CoCondVar::wait() {
             // 加入一个空任务定时器，不让调度器退出
             m_timer = IOManager::GetThis()->addTimer(-1,[]{},true);
         }
-    });
+    }
     // 让出协程
     Fiber::YieldToHold();
 }
 
 void CoCondVar::wait(CoMutex::Lock& lock) {
     Fiber::ptr self = Fiber::GetThis();
-
-    IOManager::GetThis()->submit([ self, &lock, this]{
+    {
         MutexType::Lock lock1(m_mutex);
         // 将自己加入等待队列
         m_waitQueue.push(self);
@@ -81,7 +73,7 @@ void CoCondVar::wait(CoMutex::Lock& lock) {
         }
         // 先解锁
         lock.unlock();
-    });
+    }
 
     // 让出协程
     Fiber::YieldToHold();

@@ -68,6 +68,7 @@ void Scheduler::run() {
 
     ScheduleTask task;
     while (true){
+        task.reset();
         bool tickle = false;
         //线程取出任务
         {
@@ -80,6 +81,10 @@ void Scheduler::run() {
                     continue;
                 }
                 ACID_ASSERT(*it);
+                if (it->fiber && it->fiber->getState() == Fiber::EXEC) {
+                    ++it;
+                    continue;
+                }
                 task = *it;
                 m_tasks.erase(it++);
                 break;
@@ -93,7 +98,8 @@ void Scheduler::run() {
             notify();
         }
 
-        if(task.fiber){
+        if(task.fiber&& (task.fiber->getState() != Fiber::TERM
+                         && task.fiber->getState() != Fiber::EXCEPT)) {
             ++m_activeThreads;
             task.fiber->resume();
             --m_activeThreads;
@@ -113,7 +119,7 @@ void Scheduler::run() {
             --m_activeThreads;
             if(cb_fiber->getState() == Fiber::READY){
                 submit(cb_fiber);
-                cb_fiber = nullptr;
+                cb_fiber.reset();
             } else if (cb_fiber->isTerminate()){
                 cb_fiber->reset(nullptr);
             } else {
