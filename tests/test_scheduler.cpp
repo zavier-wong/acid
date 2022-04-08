@@ -28,6 +28,7 @@ void test_fiber2(){
         acid::Fiber::YieldToReady();
     }
 }
+
 void test3(){
     ACID_LOG_INFO(g_logger) << "main";
     acid::Scheduler sc(3,"test");
@@ -43,35 +44,12 @@ void test3(){
     ACID_LOG_INFO(g_logger) << "over";
 }
 
-void test_fiber_mutex(){
-    acid::Mutex m;
-    //static int i=0;
-    ACID_LOG_INFO(g_logger) << "start lock";
-    m.lock();
-    ACID_LOG_INFO(g_logger) << "Yield";
-    acid::Fiber::YieldToReady();
-    ACID_LOG_INFO(g_logger) << "resume";
-    m.unlock();
-    ACID_LOG_INFO(g_logger) << "unlock";
-}
-
-void f2() {
-    ACID_LOG_DEBUG(g_logger) << "Im fiber 2";
-    acid::Fiber::YieldToReady();
-}
-
-void f1() {
-    ACID_LOG_DEBUG(g_logger) << "Im fiber 1";
-    acid::Fiber::ptr fiber(new acid::Fiber(f2));
-    //fiber->setCaller(acid::Fiber::GetThis());
-    fiber->resume();
-}
 int main(int argc, char** argv) {
     ACID_LOG_DEBUG(g_logger) << "main";
     acid::Scheduler sc(3,"test");
     sc.start();
-    //sc.submit(&test_fiber_mutex);
-    //sc.submit(&test_fiber_mutex);
-    sc.submit(&f1);
+    sc.submit([]{
+        ACID_LOG_INFO(g_logger) << "hello world";
+    });
     return 0;
 }
