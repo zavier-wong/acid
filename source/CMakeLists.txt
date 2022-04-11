@@ -6,6 +6,7 @@ set(LIB_SRC
         config.cpp
         fd_manager.cpp
         fiber.cpp
+        file_monitor.cpp
 
         http/http.cpp
         http/http_connection.cpp
