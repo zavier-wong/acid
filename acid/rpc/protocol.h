@@ -36,14 +36,20 @@ public:
         RPC_REQUEST,            // 通用请求
         RPC_RESPONSE,           // 通用响应
 
-        RPC_METHOD_REQUEST ,    // 请求方法调用
+        RPC_METHOD_REQUEST,     // 请求方法调用
         RPC_METHOD_RESPONSE,    // 响应方法调用
 
         RPC_SERVICE_REGISTER,   // 向中心注册服务
         RPC_SERVICE_REGISTER_RESPONSE,
 
         RPC_SERVICE_DISCOVER,   // 向中心请求服务发现
-        RPC_SERVICE_DISCOVER_RESPONSE
+        RPC_SERVICE_DISCOVER_RESPONSE,
+
+        RPC_SUBSCRIBE_REQUEST,  // 订阅
+        RPC_SUBSCRIBE_RESPONSE,
+
+        RPC_PUBLISH_REQUEST,    // 发布
+        RPC_PUBLISH_RESPONSE
     };
 
     static Protocol::ptr Create(MsgType type, const std::string& content, uint32_t id = 0) {
