@@ -20,7 +20,7 @@ public:
     }
 
     ~ChannelImpl() {
-
+        close();
     }
     /**
      * @brief 发送数据到 Channel
