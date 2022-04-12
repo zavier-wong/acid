@@ -15,6 +15,7 @@ namespace acid::rpc {
 class RpcSession : public SocketStream {
 public:
     using ptr = std::shared_ptr<RpcSession>;
+    using MutexType = CoMutex;
 
     /**
      * @brief 构造函数
@@ -33,6 +34,8 @@ public:
      * @return 发送大小
      */
     ssize_t sendProtocol(Protocol::ptr proto);
+private:
+    MutexType m_mutex;
 };
 }
 #endif //ACID_RPC_SESSION_H
