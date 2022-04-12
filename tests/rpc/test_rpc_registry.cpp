@@ -12,7 +12,24 @@ void rpc_service_registry() {
     }
     server->start();
 }
+void test_publish() {
+    acid::Address::ptr address = acid::Address::LookupAny("127.0.0.1:8070");
+    acid::rpc::RpcServiceRegistry::ptr server(new acid::rpc::RpcServiceRegistry());
+    while (!server->bind(address)){
+        sleep(1);
+    }
+    server->start();
+    Go {
+        int n = 0;
+        std::vector<int> vec;
+        while (true) {
+            vec.push_back(n);
+            sleep(3);
+            server->publish("data", vec);
+            ++n;
+        }
+    };
+}
 int main() {
-    acid::IOManager ioManager{};
-    ioManager.submit(rpc_service_registry);
+    go test_publish;
 }

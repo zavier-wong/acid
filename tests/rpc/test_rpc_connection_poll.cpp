@@ -3,6 +3,7 @@
 //
 
 #include "acid/rpc/rpc_connection_pool.h"
+#include "acid/rpc/serializer.h"
 #include "acid/log.h"
 static acid::Logger::ptr g_logger = ACID_LOG_ROOT();
 
@@ -41,7 +42,23 @@ void test_discover() {
 //    ACID_LOG_INFO(g_logger) << b.get().toString();
 //    ACID_LOG_INFO(g_logger) << a.get().toString();
 }
+
+void test_subscribe() {
+    acid::Address::ptr address = acid::Address::LookupAny("127.0.0.1:8070");
+    //acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>(5);
+    acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>();
+    con->connect(address);
+    con->subscribe("data",[](acid::rpc::Serializer s){
+        std::vector<int> vec;
+        s >> vec;
+        std::string str;
+        std::for_each(vec.begin(), vec.end(),[&str](int i) mutable { str += std::to_string(i);});
+        LOG_DEBUG << "recv publish: " << str;
+    });
+    while (true) {
+        sleep(5);
+    }
+}
 int main() {
-    acid::IOManager ioManager{};
-    ioManager.submit(test_discover);
+    go test_subscribe;
 }
