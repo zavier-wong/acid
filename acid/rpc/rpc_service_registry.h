@@ -13,6 +13,8 @@
 #include "acid/net/tcp_server.h"
 #include "acid/net/socket_stream.h"
 #include "protocol.h"
+#include "rpc_session.h"
+#include "serializer.h"
 namespace acid::rpc {
 /**
  * @brief RPC服务注册中心
@@ -26,12 +28,42 @@ public:
     RpcServiceRegistry(IOManager* worker = IOManager::GetThis(),
                         IOManager* accept_worker = IOManager::GetThis());
 
+    ~RpcServiceRegistry();
+
     /**
      * @brief 设置 RPC 服务注册中心名称
      * @param[in] name 名字
      */
     void setName(const std::string& name) override {
         TcpServer::setName(name);
+    }
+
+    /**
+     * @brief 发布消息
+     * @param[in] key 发布的key
+     * @param[in] data 支持 Serializer 的都可以发布
+     */
+    template <typename T>
+    void publish(const std::string& key, T data) {
+        {
+            MutexType::Lock lock(m_sub_mtx);
+            if (m_subscribes.empty()) {
+                return;
+            }
+        }
+        Serializer s;
+        s << key << data;
+        s.reset();
+        Protocol::ptr pub = Protocol::Create(Protocol::MsgType::RPC_PUBLISH_REQUEST, s.toString(), 0);
+        MutexType::Lock lock(m_sub_mtx);
+        auto range = m_subscribes.equal_range(key);
+        for (auto it = range.first; it != range.second; ++it) {
+            auto conn = it->second.lock();
+            if (conn == nullptr || !conn->isConnected()) {
+                continue;
+            }
+            conn->sendProtocol(pub);
+        }
     }
 
 protected:
@@ -48,7 +80,6 @@ protected:
      * @param[in] client 用户套接字
      */
     void handleClient(Socket::ptr client) override;
-
     /**
      * 为服务端提供服务注册
      * 将服务地址注册到对应服务名下
@@ -57,13 +88,11 @@ protected:
      * @param serviceAddress 服务地址
      */
     Protocol::ptr handleRegisterService(Protocol::ptr p, Address::ptr address);
-
     /**
      * 移除注册服务
      * @param sock 移除的服务地址
      */
     void handleUnregisterService(Address::ptr address);
-
     /**
      * 为客户端提供服务发现
      * @param serviceName 服务名称
@@ -76,11 +105,14 @@ protected:
      * @return 服务地址列表
      */
     Address::ptr handleProvider(Protocol::ptr p, Socket::ptr sock);
-
     /**
      * 处理心跳包
      */
     Protocol::ptr handleHeartbeatPacket(Protocol::ptr p);
+    /**
+     * @brief 处理订阅请求
+     */
+    Protocol::ptr handleSubscribe(Protocol::ptr proto, RpcSession::ptr client);
 private:
     /**
      * 维护服务名和服务地址列表的多重映射
@@ -94,6 +126,14 @@ private:
     MutexType m_mutex;
     // 允许心跳超时的时间 默认 40s
     uint64_t m_AliveTime;
+    // 订阅的客户端
+    std::unordered_multimap<std::string, std::weak_ptr<RpcSession>> m_subscribes;
+    // 保护 m_subscribes
+    MutexType m_sub_mtx;
+    // 停止清理订阅协程
+    bool m_stop_clean = false;
+    // 等待清理协程停止
+    Channel<bool> m_clean_chan{1};
 };
 
 

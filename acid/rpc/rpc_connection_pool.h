@@ -8,6 +8,7 @@
 #include "acid/sync.h"
 #include "route_strategy.h"
 #include "rpc_client.h"
+#include "serializer.h"
 #include "rpc_session.h"
 
 namespace acid::rpc {
@@ -26,33 +27,6 @@ public:
      * @param[in] address 服务中心地址
      */
     bool connect(Address::ptr address);
-
-    void stop();
-    /**
-     * @brief 用户可手动服务发现
-     * @param name 服务名称
-     * @return 通过服务的地址数量
-     */
-    [[maybe_unused]]
-    size_t discover(const std::string& name) {
-        std::vector<std::string> addrs = discover_impl(name);
-        if (addrs.size()) {
-            // 选择客户端负载均衡策略，根据路由策略选择服务地址
-            RouteStrategy<std::string>::ptr strategy =
-                    RouteEngine<std::string>::queryStrategy(Strategy::Random);
-            const std::string& ip = strategy->select(addrs);
-            Address::ptr address = Address::LookupAny(ip);
-            // 选择的服务地址有效
-            if (address) {
-                RpcClient::ptr client = std::make_shared<RpcClient>();
-                // 成功连接上服务器
-                if (client->connect(address)) {
-                    m_conns.template emplace(name, client);
-                }
-            }
-        }
-        return addrs.size();
-    }
 
     /**
      * @brief 异步远程过程调用回调模式
@@ -127,7 +101,7 @@ public:
                 res.setMsg("registry closed");
                 return res;
             }
-            addrs = discover_impl(name);
+            addrs = discover(name);
             // 如果没有发现服务返回错误
             if (addrs.empty()) {
                 Result<R> res;
@@ -159,7 +133,31 @@ public:
         result.setMsg("call fail");
         return result;
     }
+    /**
+     * @brief 订阅消息
+     * @param[in] key 订阅的key
+     * @param[in] func 回调函数
+     */
+    template<typename Func>
+    void subscribe(const std::string& key, Func func) {
+        {
+            MutexType::Lock lock(m_sub_mtx);
+            auto it = m_subHandle.find(key);
+            if (it != m_subHandle.end()) {
+                ACID_ASSERT2(false, "duplicated subscribe");
+                return;
+            }
 
+            m_subHandle.emplace(key, std::move(func));
+        }
+        Serializer s;
+        s << key;
+        s.reset();
+        Protocol::ptr response = Protocol::Create(Protocol::MsgType::RPC_SUBSCRIBE_REQUEST, s.toString(), 0);
+        m_chan << response;
+    }
+
+    void close();
 private:
 
     /**
@@ -167,22 +165,47 @@ private:
      * @param name 服务名称
      * @return 服务地址列表
      */
-    std::vector<std::string> discover_impl(const std::string& name);
-
+    std::vector<std::string> discover(const std::string& name);
+    /**
+     * @brief rpc 连接对象的发送协程，通过 Channel 收集调用请求，并转发请求给注册中心。
+     */
+    void handleSend();
+    /**
+     * @brief rpc 连接对象的接收协程，负责接收注册中心发送的 response 响应并根据响应类型进行处理
+     */
+    void handleRecv();
+    /**
+     * @brief 处理注册中心服务发现响应
+     */
+    void handleServiceDiscover(Protocol::ptr response);
+    /**
+     * @brief 处理发布消息
+     */
+    void handlePublish(Protocol::ptr proto);
 private:
+    bool m_isClose = true;
+    bool m_isHeartClose = true;
     uint64_t m_timeout;
-    MutexType m_sendMutex;
-
+    // 保护 m_conns
     MutexType m_connMutex;
-    /// 服务名到全部缓存的服务地址列表映射
+    // 服务名到全部缓存的服务地址列表映射
     std::map<std::string, std::vector<std::string>> m_serviceCache;
-    /// 服务名和服务地址的连接池
+    // 服务名和服务地址的连接池
     std::map<std::string, RpcClient::ptr> m_conns;
-    /// 服务中心连接
+    // 服务中心连接
     RpcSession::ptr m_registry;
-
-    /// 服务中心心跳定时器
+    // 服务中心心跳定时器
     Timer::ptr m_heartTimer;
+    // 注册中心消息发送通道
+    Channel<Protocol::ptr> m_chan;
+    // 服务名到对应调用者协程的 Channel 映射
+    std::map<std::string, Channel<Protocol::ptr>> m_discover_handle;
+    // m_discover_handle 的 mutex
+    MutexType m_discover_mutex;
+    // 处理订阅的消息回调函数
+    std::map<std::string, std::function<void(Serializer)>> m_subHandle;
+    // 保护m_subHandle
+    MutexType m_sub_mtx;
 };
 
 }

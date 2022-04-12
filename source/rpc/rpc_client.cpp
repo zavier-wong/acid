@@ -131,6 +131,7 @@ void RpcClient::handleRecv() {
             close();
             break;
         }
+        m_isHeartClose = false;
         Protocol::MsgType type = response->getMsgType();
         // 判断响应类型进行对应的处理
         switch (type) {
@@ -140,6 +141,12 @@ void RpcClient::handleRecv() {
             case Protocol::MsgType::RPC_METHOD_RESPONSE:
                 // 处理调用结果
                 handleMethodResponse(response);
+                break;
+            case Protocol::MsgType::RPC_PUBLISH_REQUEST:
+                handlePublish(response);
+                m_chan << Protocol::Create(Protocol::MsgType::RPC_PUBLISH_RESPONSE,"");
+                break;
+            case Protocol::MsgType::RPC_SUBSCRIBE_RESPONSE:
                 break;
             default:
                 ACID_LOG_DEBUG(g_logger) << "protocol:" << response->toString();
@@ -163,6 +170,16 @@ void RpcClient::handleMethodResponse(Protocol::ptr response) {
     Channel<Protocol::ptr> chan = it->second;
     // 对该 Channel 发送调用结果唤醒调用者
     chan << response;
+}
+
+void RpcClient::handlePublish(Protocol::ptr proto) {
+    Serializer s(proto->getContent());
+    std::string key;
+    s >> key;
+    MutexType::Lock lock(m_sub_mtx);
+    auto it = m_subHandle.find(key);
+    if (it == m_subHandle.end()) return;
+    it->second(s);
 }
 
 }

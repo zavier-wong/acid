@@ -57,9 +57,9 @@ public:
     Result<R> call(const std::string& name, Params... ps) {
         using args_type = std::tuple<typename std::decay<Params>::type...>;
         args_type args = std::make_tuple(ps...);
-        Serializer::ptr s = std::make_shared<Serializer>();
-        (*s) << name << args;
-        s->reset();
+        Serializer s;
+        s << name << args;
+        s.reset();
         return call<R>(s);
     }
     /**
@@ -69,9 +69,9 @@ public:
      */
     template<typename R>
     Result<R> call(const std::string& name) {
-        Serializer::ptr s = std::make_shared<Serializer>();
-        (*s) << name;
-        s->reset();
+        Serializer s;
+        s << name;
+        s.reset();
         return call<R>(s);
     }
 
@@ -83,7 +83,6 @@ public:
      */
     template<typename R, typename... Params>
     void async_call(std::function<void(Result<R>)> callback, const std::string& name, Params&& ... ps) {
-
         std::function<Result<R>()> task = [name, ps..., this] () -> Result<R> {
             return call<R>(name, ps...);
         };
@@ -110,6 +109,29 @@ public:
         };
         return promise->get_future();
     }
+    /**
+     * @brief 订阅消息
+     * @param[in] key 订阅的key
+     * @param[in] func 回调函数
+     */
+    template<typename Func>
+    void subscribe(const std::string& key, Func func) {
+        {
+            MutexType::Lock lock(m_sub_mtx);
+            auto it = m_subHandle.find(key);
+            if (it != m_subHandle.end()) {
+                ACID_ASSERT2(false, "duplicated subscribe");
+                return;
+            }
+
+           m_subHandle.emplace(key, std::move(func));
+        }
+        Serializer s;
+        s << key;
+        s.reset();
+        Protocol::ptr response = Protocol::Create(Protocol::MsgType::RPC_SUBSCRIBE_REQUEST, s.toString(), 0);
+        m_chan << response;
+    }
 
     Socket::ptr getSocket() {
         return m_session->getSocket();
@@ -128,12 +150,16 @@ private:
      */
     void handleMethodResponse(Protocol::ptr response);
     /**
+     * @brief 处理发布消息
+     */
+    void handlePublish(Protocol::ptr proto);
+    /**
      * @brief 实际调用
      * @param[in] s 序列化完的请求
      * @return 返回调用结果
      */
     template<typename R>
-    Result<R> call(Serializer::ptr s) {
+    Result<R> call(Serializer s) {
         Result<R> val;
         if (!m_session || !m_session->isConnected()) {
             val.setCode(RPC_CLOSED);
@@ -156,7 +182,7 @@ private:
 
         // 创建请求协议，附带上请求 id
         Protocol::ptr request =
-                Protocol::Create(Protocol::MsgType::RPC_METHOD_REQUEST,s->toString(), id);
+                Protocol::Create(Protocol::MsgType::RPC_METHOD_REQUEST,s.toString(), id);
 
         // 向 send 协程的 Channel 发送消息
         m_chan << request;
@@ -215,20 +241,24 @@ private:
 private:
     bool m_isClose = true;
     bool m_isHeartClose = true;
-    /// 超时时间
+    // 超时时间
     uint64_t m_timeout = -1;
-    /// 服务器的连接
+    // 服务器的连接
     RpcSession::ptr m_session;
-    /// 序列号
+    // 序列号
     uint32_t m_sequenceId = 0;
-    /// 序列号到对应调用者协程的 Channel 映射
+    // 序列号到对应调用者协程的 Channel 映射
     std::map<uint32_t, Channel<Protocol::ptr>> m_responseHandle;
-    /// m_responseHandle 的 mutex
+    // m_responseHandle 的 mutex
     MutexType m_mutex;
-    /// 消息发送通道
+    // 消息发送通道
     Channel<Protocol::ptr> m_chan;
-    /// service provider心跳定时器
+    // service provider心跳定时器
     Timer::ptr m_heartTimer;
+    // 处理订阅的消息回调函数
+    std::map<std::string, std::function<void(Serializer)>> m_subHandle;
+    // 保护m_subHandle
+    MutexType m_sub_mtx;
 };
 
 

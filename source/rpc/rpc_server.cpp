@@ -31,6 +31,16 @@ RpcServer::RpcServer(IOManager *worker, IOManager *accept_worker)
         , m_AliveTime(s_heartbeat_timeout){
 
 }
+
+RpcServer::~RpcServer() {
+    {
+        MutexType::Lock lock(m_sub_mtx);
+        m_stop_clean = true;
+    }
+    bool join = false;
+    m_clean_chan >> join;
+}
+
 bool RpcServer::bind(Address::ptr address) {
     m_port = std::dynamic_pointer_cast<IPv4Address>(address)->getPort();
     return TcpServer::bind(address);
@@ -85,6 +95,24 @@ bool RpcServer::start() {
             }
         }, true);
     }
+
+    // 开启协程定时清理订阅列表
+    Go {
+        while (!m_stop_clean) {
+            sleep(5);
+            MutexType::Lock lock(m_sub_mtx);
+            for (auto it = m_subscribes.cbegin(); it != m_subscribes.cend();) {
+                auto conn = it->second.lock();
+                if (conn == nullptr || !conn->isConnected()) {
+                    it = m_subscribes.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+        m_clean_chan << true;
+    };
+
     return TcpServer::start();
 }
 
@@ -92,7 +120,6 @@ void RpcServer::handleClient(Socket::ptr client) {
     ACID_LOG_DEBUG(g_logger) << "handleClient: " << client->toString();
     RpcSession::ptr session = std::make_shared<RpcSession>(client);
 
-    CoMutex mutex;
     Timer::ptr heartTimer;
     // 开启心跳定时器
     update(heartTimer, client);
@@ -106,7 +133,7 @@ void RpcServer::handleClient(Socket::ptr client) {
 
         auto self = shared_from_this();
         // 启动一个任务协程
-        go [request, session, &mutex, self, this]() mutable {
+        go [request, session, self, this]() mutable {
             Protocol::ptr response;
             Protocol::MsgType type = request->getMsgType();
             switch (type) {
@@ -116,13 +143,17 @@ void RpcServer::handleClient(Socket::ptr client) {
                 case Protocol::MsgType::RPC_METHOD_REQUEST:
                     response = handleMethodCall(request);
                     break;
+                case Protocol::MsgType::RPC_SUBSCRIBE_REQUEST:
+                    response = handleSubscribe(request, session);
+                    break;
+                case Protocol::MsgType::RPC_PUBLISH_RESPONSE:
+                    return;
                 default:
                     ACID_LOG_DEBUG(g_logger) << "protocol:" << request->toString();
                     break;
             }
 
             if (response) {
-                CoMutex::Lock lock(mutex);
                 session->sendProtocol(response);
             }
             self = nullptr;
@@ -143,14 +174,15 @@ void RpcServer::update(Timer::ptr& heartTimer, Socket::ptr client) {
     // 更新定时器
     heartTimer->reset(m_AliveTime, true);
 }
-Serializer::ptr RpcServer::call(const std::string &name, const std::string& arg) {
-    Serializer::ptr serializer = std::make_shared<Serializer>();
+
+Serializer RpcServer::call(const std::string &name, const std::string& arg) {
+    Serializer serializer;
     if (m_handlers.find(name) == m_handlers.end()) {
         return serializer;
     }
     auto fun = m_handlers[name];
     fun(serializer, arg);
-    serializer->reset();
+    serializer.reset();
     return serializer;
 }
 
@@ -158,9 +190,9 @@ Protocol::ptr RpcServer::handleMethodCall(Protocol::ptr p) {
     std::string func_name;
     Serializer request(p->getContent());
     request >> func_name;
-    Serializer::ptr rt = call(func_name, request.toString());
+    Serializer rt = call(func_name, request.toString());
     Protocol::ptr response = Protocol::Create(
-            Protocol::MsgType::RPC_METHOD_RESPONSE, rt->toString(), p->getSequenceId());
+            Protocol::MsgType::RPC_METHOD_RESPONSE, rt.toString(), p->getSequenceId());
     return response;
 }
 
@@ -186,6 +218,18 @@ void RpcServer::registerService(const std::string &name) {
 
 Protocol::ptr RpcServer::handleHeartbeatPacket(Protocol::ptr p) {
     return Protocol::HeartBeat();
+}
+
+Protocol::ptr RpcServer::handleSubscribe(Protocol::ptr proto, RpcSession::ptr client) {
+    MutexType::Lock lock(m_sub_mtx);
+    std::string key;
+    Serializer s(proto->getContent());
+    s >> key;
+    m_subscribes.emplace(key, std::weak_ptr<RpcSession>(client));
+    Result<> res = Result<>::Success();
+    s.reset();
+    s << res;
+    return Protocol::Create(Protocol::MsgType::RPC_SUBSCRIBE_RESPONSE, s.toString(), 0);
 }
 
 

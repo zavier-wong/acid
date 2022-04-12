@@ -6,7 +6,6 @@
 #include "acid/log.h"
 #include "acid/rpc/rpc.h"
 #include "acid/rpc/rpc_service_registry.h"
-#include "acid/rpc/rpc_session.h"
 
 namespace acid::rpc {
 static Logger::ptr g_logger = ACID_LOG_NAME("system");
@@ -34,6 +33,32 @@ RpcServiceRegistry::RpcServiceRegistry(IOManager *worker, IOManager *accept_work
         : TcpServer(worker, accept_worker)
         , m_AliveTime(s_heartbeat_timeout){
     setName("RpcServiceRegistry");
+
+    // 开启协程定时清理订阅列表
+    Go {
+        while (!m_stop_clean) {
+            sleep(5);
+            MutexType::Lock lock(m_sub_mtx);
+            for (auto it = m_subscribes.cbegin(); it != m_subscribes.cend();) {
+                auto conn = it->second.lock();
+                if (conn == nullptr || !conn->isConnected()) {
+                    it = m_subscribes.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+        m_clean_chan << true;
+    };
+}
+
+RpcServiceRegistry::~RpcServiceRegistry() {
+    {
+        MutexType::Lock lock(m_sub_mtx);
+        m_stop_clean = true;
+    }
+    bool join = false;
+    m_clean_chan >> join;
 }
 
 void RpcServiceRegistry::update(Timer::ptr& heartTimer, Socket::ptr client) {
@@ -86,6 +111,11 @@ void RpcServiceRegistry::handleClient(Socket::ptr client) {
             case Protocol::MsgType::RPC_SERVICE_DISCOVER:
                 response = handleDiscoverService(request);
                 break;
+            case Protocol::MsgType::RPC_SUBSCRIBE_REQUEST:
+                response = handleSubscribe(request, session);
+                break;
+            case Protocol::MsgType::RPC_PUBLISH_RESPONSE:
+                continue;
             default:
                 ACID_LOG_WARN(g_logger) << "protocol:" << request->toString();
                 continue;
@@ -171,7 +201,7 @@ Protocol::ptr RpcServiceRegistry::handleDiscoverService(Protocol::ptr p) {
     }
 
     Serializer s;
-    s << cnt;
+    s << serviceName << cnt;
     for (uint32_t i = 0; i < cnt; ++i) {
         s << result[i];
     }
@@ -181,5 +211,16 @@ Protocol::ptr RpcServiceRegistry::handleDiscoverService(Protocol::ptr p) {
     return proto;
 }
 
+Protocol::ptr RpcServiceRegistry::handleSubscribe(Protocol::ptr proto, RpcSession::ptr client) {
+    MutexType::Lock lock(m_sub_mtx);
+    std::string key;
+    Serializer s(proto->getContent());
+    s >> key;
+    m_subscribes.emplace(key, std::weak_ptr<RpcSession>(client));
+    Result<> res = Result<>::Success();
+    s.reset();
+    s << res;
+    return Protocol::Create(Protocol::MsgType::RPC_SUBSCRIBE_RESPONSE, s.toString(), 0);
+}
 
 }
