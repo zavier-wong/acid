@@ -86,8 +86,7 @@ public:
             lock.lock();
             // 移除失效连接
             std::vector<std::string>& addrs = m_serviceCache[name];
-            addrs.erase(std::remove(addrs.begin(), addrs.end(),
-                                    conn->second->getSocket()->getRemoteAddress()->toString()));
+            std::erase(addrs, conn->second->getSocket()->getRemoteAddress()->toString());
 
             m_conns.erase(name);
         }
@@ -116,7 +115,7 @@ public:
                 RouteEngine<std::string>::queryStrategy(Strategy::Random);
 
         if (addrs.size()) {
-            const std::string& ip = strategy->select(addrs);
+            const std::string ip = strategy->select(addrs);
             Address::ptr address = Address::LookupAny(ip);
             // 选择的服务地址有效
             if (address) {
