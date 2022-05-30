@@ -7,7 +7,7 @@
 #include "acid/log.h"
 static acid::Logger::ptr g_logger = ACID_LOG_ROOT();
 
-void test_discover() {
+void test_call() {
     acid::Address::ptr address = acid::Address::LookupAny("127.0.0.1:8070");
     //acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>(5);
     acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>();
@@ -59,6 +59,24 @@ void test_subscribe() {
         sleep(5);
     }
 }
+
+void test_subscribe_service() {
+    acid::Address::ptr address = acid::Address::LookupAny("127.0.0.1:8070");
+    acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>();
+    con->connect(address);
+
+    auto aa = con->call<int>("add",1,1);
+    ACID_LOG_INFO(g_logger) << aa.toString();
+
+    while (true) {
+        // 将 test_rpc_server 断开，会看到控制台打印 service [ add : 127.0.0.1:8080 ] quit
+        // 将 test_rpc_server 重新连接，会看到控制台打印 service [ add : 127.0.0.1:8080 ] join
+        // 实时的发布/订阅模式实现自动维护服务列表
+        sleep(1);
+    }
+}
+
 int main() {
-    go test_subscribe;
+    //go test_subscribe;
+    go test_subscribe_service;
 }

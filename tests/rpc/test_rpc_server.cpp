@@ -38,11 +38,11 @@ int main(int argc, char** argv) {
     }
     server->bindRegistry(registry);
     server->start();
-    Go {
-        LOG_DEBUG << "start publish";
-        while (true) {
-            server->publish("iloveyou","Yes, i love you too");
-            sleep(1);
-        }
-    };
+//    Go {
+//        LOG_DEBUG << "start publish";
+//        while (true) {
+//            server->publish("iloveyou","Yes, i love you too");
+//            sleep(1);
+//        }
+//    };
 }
