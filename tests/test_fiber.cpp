@@ -35,43 +35,8 @@ void test2(){
     }
 
 }
-void test_called_fiber(){
 
-    ACID_LOG_DEBUG(g_logger) << "I was called";
-    //acid::Fiber::YieldToReady();
-    ACID_LOG_WARN(g_logger) << "I was called";
-}
-void test_caller_fiber(){
-
-    acid::Fiber::ptr fiber(new acid::Fiber(&test_called_fiber));
-    //fiber->resume();
-    fiber->resume();
-    ACID_LOG_DEBUG(g_logger) << " Im calling";
-}
-
-
-
-void f3() {
-    ACID_LOG_DEBUG(g_logger) << "Im fiber 3";
-    acid::Fiber::YieldToReady();
-    ACID_LOG_DEBUG(g_logger) << "Im fiber 3 resume from fiber 2";
-}
-
-void f2() {
-    ACID_LOG_DEBUG(g_logger) << "Im fiber 2";
-    acid::Fiber::ptr fiber(new acid::Fiber(f3));
-    fiber->resume();
-    fiber->resume();
-}
-
-void f1() {
-    ACID_LOG_DEBUG(g_logger) << "Im fiber 1";
-    acid::Fiber::ptr fiber(new acid::Fiber(f2));
-    fiber->resume();
-}
 int main(int argc, char **argv){
     acid::Fiber::EnableFiber();
-    acid::Fiber::ptr fiber(new acid::Fiber(&f1));
-    fiber->resume();
-    ACID_LOG_DEBUG(g_logger) << "Im main";
+    // go test1;
 }
