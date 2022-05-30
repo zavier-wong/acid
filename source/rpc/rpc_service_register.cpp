@@ -157,6 +157,11 @@ Protocol::ptr RpcServiceRegistry::handleRegisterService(Protocol::ptr p, Address
 
     Protocol::ptr proto =
             Protocol::Create(Protocol::MsgType::RPC_SERVICE_REGISTER_RESPONSE, s.toString());
+
+    // 发布服务上线消息
+    std::tuple<bool, std::string> data { true, serviceAddress};
+    publish(RPC_SERVICE_SUBSCRIBE + serviceName, data);
+
     return proto;
 }
 
@@ -169,6 +174,9 @@ void RpcServiceRegistry::handleUnregisterService(Address::ptr address) {
     auto its = it->second;
     for (auto& i: its) {
         m_services.erase(i);
+        // 发布服务下线消息
+        std::tuple<bool, std::string> data { false, address->toString()};
+        publish(RPC_SERVICE_SUBSCRIBE + i->first, data);
     }
     m_iters.erase(address->toString());
 }
