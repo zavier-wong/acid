@@ -14,6 +14,9 @@
 
 namespace acid::rpc {
 
+// 连接池向注册中心订阅的前缀
+inline const char* RPC_SERVICE_SUBSCRIBE = "[[rpc service subscribe]]";
+
 template<typename T>
 struct return_type {
     using type = T;
