@@ -229,6 +229,30 @@ std::vector<std::string> RpcConnectionPool::discover(const std::string& name) {
         rt.push_back(res[i].getVal());
     }
 
+    if (!m_subHandle.contains(RPC_SERVICE_SUBSCRIBE + name)) {
+        // 向注册中心订阅服务变化的消息
+        subscribe(RPC_SERVICE_SUBSCRIBE + name, [name, this](Serializer s){
+            // false 为服务下线，true 为新服务节点上线
+            bool isNewServer = false;
+            std::string addr;
+            s >> isNewServer >> addr;
+            MutexType::Lock lock(m_connMutex);
+            if (isNewServer) {
+                // 一个新的服务提供者节点加入，将服务地址加入服务列表缓存
+                LOG_DEBUG << "service [ " << name << " : " << addr << " ] join";
+                m_serviceCache[name].push_back(addr);
+            } else {
+                // 已有服务提供者节点下线
+                LOG_DEBUG << "service [ " << name << " : " << addr << " ] quit";
+                // 清理缓存中断开的连接地址
+                auto its = m_serviceCache.find(name);
+                if (its != m_serviceCache.end()) {
+                    std::erase(its->second, addr);
+                }
+            }
+        });
+    }
+
     return rt;
 }
 
