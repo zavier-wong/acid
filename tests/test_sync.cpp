@@ -102,7 +102,7 @@ void chan_a(Channel<int> chan) {
 }
 
 void chan_b(Channel<int> chan) {
-    int i;
+    int i = 0;
     while (chan >> i) {
         ACID_LOG_INFO(g_logger) << "consumer " << i;
     }
@@ -114,9 +114,32 @@ void test_channel() {
     loop.submit(std::bind(chan_a, chan));
     loop.submit(std::bind(chan_b, chan));
 }
+void test_countdown() {
+    Go {
+        CoCountDownLatch cnt(5);
+        for (int i = 0; i < 5; ++i) {
+            go [i, &cnt] {
+                sleep(i);
+                LOG_DEBUG << cnt.getCount();
+                cnt.countDown();
+            };
+        }
+        go[&cnt] {
+            cnt.wait();
+            LOG_DEBUG << cnt.getCount();
+        };
+        go[&cnt] {
+            cnt.wait();
+            LOG_DEBUG << cnt.getCount();
+        };
+        cnt.wait();
+        LOG_DEBUG << cnt.getCount();
+    };
+}
 int main() {
     //test_mutex();
-    //test_condvar();
+    //est_condvar();
     //test_sem();
-    test_channel();
+    //test_channel();
+    test_countdown();
 }
