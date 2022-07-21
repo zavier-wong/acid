@@ -69,15 +69,20 @@ public:
     }
 
     Result() {}
-
-    bool valid() { return (m_code == 0 ? true : false); }
-
-    type getVal() { return m_val; }
+    bool valid() { return m_code == 0; }
+    type& getVal() { return m_val; }
     void setVal(const type& val) { m_val = val; }
     void setCode(code_type code) { m_code = code; }
     int getCode() { return m_code; }
     void setMsg(msg_type msg) { m_msg = msg; }
     const msg_type& getMsg() { return m_msg; }
+
+    type* operator->() noexcept {
+        return &m_val;
+    }
+    const type* operator->() const noexcept {
+        return &m_val;
+    }
 
     /**
      * @brief 调试使用 ！！！！！！
