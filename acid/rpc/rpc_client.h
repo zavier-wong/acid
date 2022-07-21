@@ -30,7 +30,11 @@ public:
     using ptr = std::shared_ptr<RpcClient>;
     using MutexType = CoMutex;
 
-    RpcClient();
+    /**
+     * @brief 构造函数
+     * @param[in] auto_heartbeat 是否开启自动心跳包
+     */
+    RpcClient(bool auto_heartbeat = true);
 
     ~RpcClient();
 
@@ -136,6 +140,11 @@ public:
     Socket::ptr getSocket() {
         return m_session->getSocket();
     }
+
+    bool isClose() {
+        return !m_session || !m_session->isConnected();
+    }
+
 private:
     /**
      * @brief rpc 连接对象的发送协程，通过 Channel 收集调用请求，并转发请求给服务器。
@@ -239,6 +248,8 @@ private:
     }
 
 private:
+    // 是否自动开启心跳包
+    bool m_auto_heartbeat = true;
     bool m_isClose = true;
     bool m_isHeartClose = true;
     // 超时时间

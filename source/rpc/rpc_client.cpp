@@ -26,8 +26,9 @@ struct _RpcClientIniter{
 
 static _RpcClientIniter s_initer;
 
-RpcClient::RpcClient()
-    : m_chan(s_channel_capacity){
+RpcClient::RpcClient(bool auto_heartbeat)
+    : m_auto_heartbeat(auto_heartbeat)
+    , m_chan(s_channel_capacity){
 
 }
 
@@ -59,9 +60,7 @@ void RpcClient::close() {
     }
 
     IOManager::GetThis()->delEvent(m_session->getSocket()->getSocket(), IOManager::READ);
-    if (m_session->isConnected()) {
-        m_session->close();
-    }
+    m_session->close();
 }
 
 bool RpcClient::connect(Address::ptr address){
@@ -77,6 +76,7 @@ bool RpcClient::connect(Address::ptr address){
     m_isHeartClose = false;
     m_isClose = false;
     m_session = std::make_shared<RpcSession>(sock);
+    m_chan = Channel<Protocol::ptr>(s_channel_capacity);
     go [this] {
         // 开启 recv 协程
         handleRecv();
@@ -86,18 +86,21 @@ bool RpcClient::connect(Address::ptr address){
         handleSend();
     };
 
-    m_heartTimer = IOManager::GetThis()->addTimer(30'000, [this]{
-        ACID_LOG_DEBUG(g_logger) << "heart beat";
-        if (m_isHeartClose) {
-            ACID_LOG_DEBUG(g_logger) << "Server closed";
-            close();
-        }
-        // 创建心跳包
-        Protocol::ptr proto = Protocol::Create(Protocol::MsgType::HEARTBEAT_PACKET, "");
-        // 向 send 协程的 Channel 发送消息
-        m_chan << proto;
-        m_isHeartClose = true;
-    }, true);
+    if (m_auto_heartbeat) {
+        m_heartTimer = IOManager::GetThis()->addTimer(30'000, [this]{
+            ACID_LOG_DEBUG(g_logger) << "heart beat";
+            if (m_isHeartClose) {
+                ACID_LOG_DEBUG(g_logger) << "Server closed";
+                close();
+            }
+            // 创建心跳包
+            Protocol::ptr proto = Protocol::Create(Protocol::MsgType::HEARTBEAT_PACKET, "");
+            // 向 send 协程的 Channel 发送消息
+            m_chan << proto;
+            m_isHeartClose = true;
+        }, true);
+    }
+
     return true;
 }
 
@@ -181,5 +184,6 @@ void RpcClient::handlePublish(Protocol::ptr proto) {
     if (it == m_subHandle.end()) return;
     it->second(s);
 }
+
 
 }
