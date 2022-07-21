@@ -27,6 +27,13 @@ set(LIB_SRC
         net/tcp_server.cpp
         net/uri.cpp
 
+        raft/raft_log.cpp
+        raft/raft_node.cpp
+        raft/raft_peer.cpp
+        raft/snapshot.cpp
+        raft/storage.cpp
+        raft/unstable.cpp
+
         rpc/rpc_client.cpp
         rpc/rpc_server.cpp
         rpc/rpc_service_register.cpp
@@ -40,14 +47,12 @@ set(LIB_SRC
         stream.cpp
         timer.cpp
         thread.cpp
-        util.cpp
-        )
+        util.cpp)
 
 set(LIB_LIB pthread yaml-cpp dl)
 
-add_library(acid STATIC ${LIB_SRC})
+add_library(acid SHARED ${LIB_SRC})
 target_link_libraries(acid ${LIB_LIB})
 redefine_file_macro(acid)
-
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)

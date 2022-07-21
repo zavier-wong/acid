@@ -23,3 +23,12 @@ foreach(TESTS_RPC_FILE_PATH ${TESTS_RPC_FILES})
     message(STATUS "Generating test target: ${TESTS_RPC_FILE_NAME} ")
     acid_add_executable(${TESTS_RPC_FILE_NAME} rpc/${TESTS_RPC_FILE_NAME}.cpp acid ${LIBS})
 endforeach(TESTS_RPC_FILE_PATH)
+
+set(TESTS_RAFT_FILES "")
+aux_source_directory("${CMAKE_SOURCE_DIR}/tests/raft" TESTS_RAFT_FILES)
+
+foreach(TESTS_RAFT_FILE_PATH ${TESTS_RAFT_FILES})
+    string(REGEX REPLACE ".+[/\]([^/\.]+)\\.cpp" "\\1" TESTS_RAFT_FILE_NAME ${TESTS_RAFT_FILE_PATH})
+    message(STATUS "Generating test target: ${TESTS_RAFT_FILE_NAME} ")
+    acid_add_executable(${TESTS_RAFT_FILE_NAME} raft/${TESTS_RAFT_FILE_NAME}.cpp acid ${LIBS})
+endforeach(TESTS_RAFT_FILE_PATH)
