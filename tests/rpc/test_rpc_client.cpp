@@ -49,7 +49,42 @@ void subscribe() {
     while(true)
     sleep(100);
 }
+// 测试重连
+void test_retry() {
+    acid::Address::ptr address = acid::Address::LookupAny("127.0.0.1:8080");
+    acid::rpc::RpcClient::ptr client(new acid::rpc::RpcClient());
+
+    if (!client->connect(address)) {
+        ACID_LOG_DEBUG(g_logger) << address->toString();
+        return;
+    }
+    client->close();
+    //client = std::make_shared<acid::rpc::RpcClient>();
+
+    if (!client->connect(address)) {
+        ACID_LOG_DEBUG(g_logger) << address->toString();
+        return;
+    }
+    int n=0;
+    //std::vector<std::future<acid::rpc::Result<int>>> vec;
+    while (n!=1000) {
+        sleep(2);
+        //ACID_LOG_DEBUG(g_logger) << n++;
+        n++;
+        auto res = client->call<int>("add",1,n);
+        if (res.getCode() == acid::rpc::RpcState::RPC_CLOSED) {
+            //client = std::make_shared<acid::rpc::RpcClient>();
+            if (!client->connect(address)) {
+                ACID_LOG_DEBUG(g_logger) << address->toString();
+            }
+            res = client->call<int>("add",1,n);
+        }
+        LOG_DEBUG << res.toString();
+
+    }
+}
 int main() {
-    go test1;
+    //go test1;
     //go subscribe;
+    go test_retry;
 }
