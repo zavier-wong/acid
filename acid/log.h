@@ -18,11 +18,11 @@
 #include "singleton.h"
 #include "util.h"
 #include "thread.h"
-#define ACID_LOG_LEVEL(logger,level)    \
-    if(level >= logger->getLevel())           \
-        acid::LogEventWrap(std::make_shared<acid::LogEvent>( \
-        logger,level,__FILE__,__LINE__,acid::GetThreadId(),acid::GetFiberId(), \
-        0, time(0) ,acid::Thread::GetName()     \
+#define ACID_LOG_LEVEL(logger,level)                                            \
+    if(level >= logger->getLevel())                                             \
+        acid::LogEventWrap(std::make_shared<acid::LogEvent>(                    \
+        logger,level,__FILE__,__LINE__,acid::GetThreadId(),acid::GetFiberId(),  \
+        0, time(0) ,acid::Thread::GetName()                                     \
         )).getSS()
 #define ACID_LOG_DEBUG(logger)  ACID_LOG_LEVEL(logger,acid::LogLevel::DEBUG)
 #define ACID_LOG_INFO(logger)   ACID_LOG_LEVEL(logger,acid::LogLevel::INFO)
@@ -32,11 +32,11 @@
 
 #define LOG_DEBUG ACID_LOG_DEBUG(acid::LogMgr::GetInstance()->getLogger("root"))
 
-#define ACID_LOG_FMT_LEVEL(logger,level,fmt,...)    \
-    if(level >= logger->getLevel())           \
-        acid::LogEventWrap(std::make_shared<acid::LogEvent>( \
-        logger,level,__FILE__,__LINE__,acid::GetThreadId(),acid::GetFiberId(), \
-        0, time(0) ,acid::Thread::GetName()     \
+#define ACID_LOG_FMT_LEVEL(logger,level,fmt,...)                                \
+    if(level >= logger->getLevel())                                             \
+        acid::LogEventWrap(std::make_shared<acid::LogEvent>(                    \
+        logger,level,__FILE__,__LINE__,acid::GetThreadId(),acid::GetFiberId(),  \
+        0, time(0) ,acid::Thread::GetName()                                     \
         )).getEvent()->format(fmt,__VA_ARGS__)
 #define ACID_LOG_FMT_DEBUG(logger,fmt,...)  ACID_LOG_FMT_LEVEL(logger,acid::LogLevel::DEBUG,fmt,__VA_ARGS__)
 #define ACID_LOG_FMT_INFO(logger,fmt,...)   ACID_LOG_FMT_LEVEL(logger,acid::LogLevel::INFO,fmt,__VA_ARGS__)
