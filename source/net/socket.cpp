@@ -145,21 +145,21 @@ bool Socket::connect(const Address::ptr address, uint64_t timeout_ms) {
     }
 
     if(ACID_UNLIKELY(m_family != address->getFamily())){
-        ACID_LOG_ERROR(g_logger) << "connect sock.family(" << m_family << ") address.family(" << address->getFamily() << ")"
+        ACID_LOG_WARN(g_logger) << "connect sock.family(" << m_family << ") address.family(" << address->getFamily() << ")"
                                  << " not equal, address=" << address->toString();
         return false;
     }
 
     if(timeout_ms == (uint64_t)-1){
         if(::connect(m_sock, address->getAddr(), address->getAddrLen())){
-            ACID_LOG_ERROR(g_logger) << "sock=" << m_sock << " connect(" << address->toString() << ") error, errno="
+            ACID_LOG_WARN(g_logger) << "sock=" << m_sock << " connect(" << address->toString() << ") error, errno="
                                      << errno << " errstr=" << strerror(errno);
             close();
             return false;
         }
     } else {
         if(::connect_with_timeout(m_sock, address->getAddr(), address->getAddrLen(), timeout_ms)){
-            ACID_LOG_ERROR(g_logger) << "sock=" << m_sock << " connect(" << address->toString() << ") error, timeout="
+            ACID_LOG_WARN(g_logger) << "sock=" << m_sock << " connect(" << address->toString() << ") error, timeout="
                                     << timeout_ms << " errno=" << errno << " errstr=" << strerror(errno);
             close();
             return false;
