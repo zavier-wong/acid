@@ -472,6 +472,9 @@ std::ostream & LogFormatter::format(std::ostream &os, std::shared_ptr <Logger> l
 
 LogEventWrap::~LogEventWrap() {
     m_event->getLogger()->log(m_event->getLevel(),m_event);
+    if (m_event->getLevel() == LogLevel::FATAL) {
+        exit(EXIT_FAILURE);
+    }
 }
 
 struct LogAppenderDefine{
