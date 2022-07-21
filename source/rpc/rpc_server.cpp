@@ -163,7 +163,7 @@ void RpcServer::handleClient(Socket::ptr client) {
 }
 
 void RpcServer::update(Timer::ptr& heartTimer, Socket::ptr client) {
-    ACID_LOG_DEBUG(g_logger) << "update heart";
+    // ACID_LOG_DEBUG(g_logger) << "update heart";
     if (!heartTimer) {
         heartTimer = m_worker->addTimer(m_AliveTime, [client]{
             ACID_LOG_DEBUG(g_logger) << "client:" << client->toString() << " closed";
