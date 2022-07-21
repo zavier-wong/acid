@@ -90,7 +90,7 @@ public:
         pthread_mutex_lock(&m_mutex);
     }
     bool tryLock() {
-        return pthread_mutex_trylock(&m_mutex);
+        return !pthread_mutex_trylock(&m_mutex);
     }
     void unlock(){
         pthread_mutex_unlock(&m_mutex);
