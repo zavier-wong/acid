@@ -37,7 +37,7 @@ int64_t RaftLog::maybeAppend(int64_t prevLogIndex, int64_t prevLogTerm, int64_t 
         } else {
             int64_t offset = prevLogIndex + 1;
 
-            if (conflict_index - offset > entries.size()) {
+            if (conflict_index - offset > (int64_t)entries.size()) {
                 ACID_LOG_FMT_FATAL(g_logger,
                    "index, %d, is out of range [%d]",
                    conflict_index - offset, entries.size());
@@ -256,7 +256,7 @@ std::pair<std::vector<Entry>, StorageError> RaftLog::slice(int64_t low, int64_t 
         } else if (err) {
             ACID_LOG_FATAL(g_logger) << "unexpected error when slice";
         }
-        if (storedEnts.size() < std::min(high, m_unstable.offset) - low) {
+        if ((int64_t)storedEnts.size() < std::min(high, m_unstable.offset) - low) {
             return {storedEnts, StorageError::Succeed};
         }
         ents = storedEnts;
@@ -269,7 +269,7 @@ std::pair<std::vector<Entry>, StorageError> RaftLog::slice(int64_t low, int64_t 
             ents = unstable;
         }
     }
-    if (ents.size() > maxSize) {
+    if ((int64_t)ents.size() > maxSize) {
         ents.erase(ents.begin() + maxSize, ents.end());
     }
     return {ents, StorageError::Succeed};

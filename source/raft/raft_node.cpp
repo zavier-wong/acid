@@ -127,6 +127,7 @@ bool RaftNode::start() {
                 ACID_LOG_FMT_DEBUG(g_logger,
                    "Node[%ld] no leader at term %ld; dropping proposal",
                    m_id, m_currentTerm);
+                continue;
             }
             appendEntry(ent);
             ACID_LOG_FMT_DEBUG(g_logger,
