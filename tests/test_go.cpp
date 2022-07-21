@@ -21,7 +21,7 @@ void test_channel(){
     };
 
     Go {
-        int i;
+        int i = 0;
         while (chan >> i) {
             LOG_DEBUG << "recv: " << i;
         }
