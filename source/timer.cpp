@@ -68,15 +68,12 @@ bool Timer::reset(uint64_t ms, bool now_time) {
     if(!m_cb){
         return false;
     }
-    /// 玄学
-    //Timer::ptr self = shared_from_this();
 
     auto it = m_manager->m_timers.find(shared_from_this());
-    if(it == m_manager->m_timers.end()){
-        return false;
+    if(it != m_manager->m_timers.end()){
+        m_manager->m_timers.erase(it);
     }
 
-    m_manager->m_timers.erase(it);
     uint64_t start = 0;
     if(now_time) {
         start = acid::GetCurrentMS();
@@ -158,8 +155,6 @@ void TimeManager::getExpiredCallbacks(std::vector<std::function<void()>>& cbs) {
         if(i->m_recurring){
             i->m_next = now + i->m_ms;
             m_timers.insert(i);
-        } else {
-            i->m_cb = nullptr;
         }
     }
 
