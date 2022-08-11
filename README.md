@@ -16,7 +16,7 @@ git clone https://github.com/jbeder/yaml-cpp.git
 cd yaml-cpp
 mkdir build
 cd build
-cmake ..
+cmake -DYAML_BUILD_SHARED_LIBS=on ..
 sudo make install
 cd ../..
 ```
@@ -33,9 +33,9 @@ cd ../..
 ```
 make完可在acid/bin执行example和test的例子。
 
-## RPC框架设计
+## 框架设计
 
-本项目将从零开始搭建出一个基于协程的异步RPC框架。
+本项目将从零开始搭建出一个基于协程的分布式服务治理框架。
 
 通过本项目你将学习到：
 - [协程同步原语](#协程同步原语)
@@ -56,7 +56,7 @@ make完可在acid/bin执行example和test的例子。
 更多的细节需要仔细阅读源码。
 
 
-本RPC框架主要有网络模块， 序列化模块，通信协议模块，客户端模块，服务端模块，服务注册中心模块，负载均衡模块
+本框架主要有网络模块，序列化模块，通信协议模块，RPC模块，服务注册中心模块，负载均衡模块，分布式协调
 
 主要有以下三个角色：
 
@@ -437,4 +437,4 @@ int main() {
 
 ## 致谢
 
-感谢 [sylar](https://github.com/sylar-yin/sylar) 项目, 跟随着sylar完成了网络部分，才下定决心写一个RPC框架。在RPC框架的设计与实现上也深度参考了sylar项目。
+感谢 [sylar](https://github.com/sylar-yin/sylar) 项目, 跟随着sylar完成了网络部分，才下定决心写一个分布式框架。在框架的设计与实现上也深度参考了sylar项目。
