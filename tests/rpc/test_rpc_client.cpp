@@ -20,9 +20,9 @@ void test1() {
     while (n!=1000) {
         //ACID_LOG_DEBUG(g_logger) << n++;
         n++;
-        client->async_call<void>([](acid::rpc::Result<> res) {
+        client->callback("sleep", [](acid::rpc::Result<> res) {
             ACID_LOG_DEBUG(g_logger) << res.toString();
-        }, "sleep");
+        });
     }
     auto rt = client->call<int>("add", 0, n);
     ACID_LOG_DEBUG(g_logger) << rt.toString();
@@ -84,7 +84,7 @@ void test_retry() {
     }
 }
 int main() {
-    //go test1;
+    go test1;
     //go subscribe;
     go test_retry;
 }
