@@ -47,7 +47,7 @@ make完可在acid/bin执行example和test的例子。
 - [服务订阅与通知](#服务订阅与通知)
 - [负载均衡](#负载均衡)
 - [健康检查](#健康检查)
-- [三种异步调用方式](#三种异步调用方式)
+- [调用方式](#调用方式)
 - [分布式协调](#分布式协调)
 
 
@@ -258,30 +258,33 @@ RouteStrategy<int>::ptr strategy =
 开启一个定时器倒计时，每次收到一个消息就更新一次定时器。如果倒计时结束还没有收到任何消息，则判断服务掉线。
 
 
-### 三种异步调用方式
-整个框架最终都要落实在服务消费者。为了方便用户，满足用户的不同需求，项目设计了三种异步调用方式。
-三种调用方式的模板参数都是返回值类型，对void类型会默认转换uint8_t 。
-1. 以同步的方式异步调用
+### 调用方式
+整个框架最终都要落实在服务消费者。为了方便用户，满足用户的不同需求，项目设计了三种调用方式。
+有模板参数的调用，模板类型为返回值类型。
+1. 同步调用
 
 整个框架本身基于协程池，所以在遇到阻塞时会自动调度实现以同步的方式异步调用
 ```cpp
 Result<int> res = con->call<int>("add", 123, 321);
 ACID_LOG_INFO(g_logger) << res.getVal();
 ```
-2. future 形式的异步调用
+2. 半同步调用
 
-调用时会立即返回一个future
+调用后会立即返回一个channel
 ```cpp
-future<Result<int>> res = con->async_call<int>("add", 123, 321);
-ACID_LOG_INFO(g_logger) << res.get().getVal();
+Result<int> res;
+Channel<int> chan = con->async_call<int>("add", 123, 321);
+// 这一步是同步的
+chan >> res;
+ACID_LOG_INFO(g_logger) << res.getVal();
 ```
 3. 异步回调
 
-async_call的第一个参数为函数时，启用回调模式，回调参数必须是返回类型的包装。收到消息时执行回调。
+收到消息时执行回调，回调参数必须是返回类型的包装，否则会在编译期报错
 ```cpp
-con->async_call<int>([](Result<int> res){
+con->callback("add", 114514, 1919810, [](Result<int> res){
     ACID_LOG_INFO(g_logger) << res.getVal();
-}, "add", 123, 321); 
+});
 ```
 
 对调用结果及状态的封装如下
@@ -292,6 +295,7 @@ con->async_call<int>([](Result<int> res){
 enum RpcState{
     RPC_SUCCESS = 0,    // 成功
     RPC_FAIL,           // 失败
+    RPC_NO_MATCH,       // 函数不匹配
     RPC_NO_METHOD,      // 没有找到调用函数
     RPC_CLOSED,         // RPC 连接被关闭
     RPC_TIMEOUT         // RPC 调用超时
@@ -387,6 +391,10 @@ int main() {
 rpc 服务消费者，并不直接用RpcClient，而是采用更高级的封装，RpcConnectionPool。
 提供了连接池和服务地址缓存。
 ```cpp
+//
+// Created by zavier on 2022/1/18.
+//
+
 #include "acid/log.h"
 #include "acid/rpc/rpc_connection_pool.h"
 
@@ -395,34 +403,39 @@ static acid::Logger::ptr g_logger = ACID_LOG_ROOT();
 // 连接服务中心，自动服务发现，执行负载均衡决策，同时会缓存发现的结果
 void Main() {
     acid::Address::ptr registry = acid::Address::LookupAny("127.0.0.1:8080");
-
+    
     // 设置连接池的数量
     acid::rpc::RpcConnectionPool::ptr con = std::make_shared<acid::rpc::RpcConnectionPool>();
-
+    
     // 连接服务中心
     con->connect(registry);
-
+    
+    acid::rpc::Result<int> res;
+    
     // 第一种调用接口，以同步的方式异步调用，原理是阻塞读时会在协程池里调度
-    acid::rpc::Result<int> sync_call = con->call<int>("add", 123, 321);
-    ACID_LOG_INFO(g_logger) << sync_call.getVal();
-
-    // 第二种调用接口，future 形式的异步调用，调用时会立即返回一个future
-    std::future<acid::rpc::Result<int>> async_call_future = con->async_call<int>("add", 123, 321);
-    ACID_LOG_INFO(g_logger) << async_call_future.get().getVal();
-
+    res = con->call<int>("add", 123, 321);
+    ACID_LOG_INFO(g_logger) << res.getVal();
+    
+    // 第二种调用接口，调用时会立即返回一个channel
+    auto chan = con->async_call<int>("add", 123, 321);
+    chan >> res;
+    ACID_LOG_INFO(g_logger) << res.getVal();
+    
     // 第三种调用接口，异步回调
-    con->async_call<int>([](acid::rpc::Result<int> res){
+    con->callback("add", 114514, 114514, [](acid::rpc::Result<int> res){
         ACID_LOG_INFO(g_logger) << res.getVal();
-    }, "add", 123, 321);
+    });
     
     // 测试并发
     int n=0;
-    while(n != 1000) {
+    while(n != 10000) {
         n++;
-        con->async_call<int>([](acid::rpc::Result<int> res){
+        con->callback("add", 0, n, [](acid::rpc::Result<int> res){
             ACID_LOG_INFO(g_logger) << res.getVal();
-        }, "add", 0, n);
+        });
     }
+    // 异步接口必须保证在得到结果之前程序不能退出
+    sleep(3);
 }
 
 int main() {
