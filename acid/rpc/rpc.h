@@ -40,6 +40,7 @@ using return_type_t = typename return_type<T>::type;
 enum RpcState{
     RPC_SUCCESS = 0,    // 成功
     RPC_FAIL,           // 失败
+    RPC_NO_MATCH,       // 函数不匹配
     RPC_NO_METHOD,      // 没有找到调用函数
     RPC_CLOSED,         // RPC 连接被关闭
     RPC_TIMEOUT         // RPC 调用超时
@@ -51,6 +52,7 @@ enum RpcState{
 template<typename T = void>
 class Result{
 public:
+    using row_type = T;
     using type = return_type_t<T>;
     using msg_type = std::string;
     using code_type = uint16_t;

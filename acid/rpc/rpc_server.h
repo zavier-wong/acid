@@ -101,7 +101,15 @@ protected:
         acid::rpc::Serializer s(arg);
         // 反序列化字节流，存为参数tuple
         Args args;
-        s >> args;
+        try {
+            s >> args;
+        } catch (...) {
+            Result<Return> val;
+            val.setCode(acid::rpc::RPC_NO_MATCH);
+            val.setMsg("params not match");
+            serializer << val;
+            return;
+        }
 
         return_type_t<Return> rt{};
 

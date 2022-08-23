@@ -17,26 +17,29 @@ void Main() {
     // 连接服务中心
     con->connect(registry);
 
-    // 第一种调用接口，以同步的方式异步调用，原理是阻塞读时会在协程池里调度
-    acid::rpc::Result<int> sync_call = con->call<int>("add", 123, 321);
-    ACID_LOG_INFO(g_logger) << sync_call.getVal();
+    acid::rpc::Result<int> res;
 
-    // 第二种调用接口，future 形式的异步调用，调用时会立即返回一个future
-    std::future<acid::rpc::Result<int>> async_call_future = con->async_call<int>("add", 123, 321);
-    ACID_LOG_INFO(g_logger) << async_call_future.get().getVal();
+    // 第一种调用接口，以同步的方式异步调用，原理是阻塞读时会在协程池里调度
+    res = con->call<int>("add", 123, 321);
+    ACID_LOG_INFO(g_logger) << res.getVal();
+
+    // 第二种调用接口，调用时会立即返回一个channel
+    auto chan = con->async_call<int>("add", 123, 321);
+    chan >> res;
+    ACID_LOG_INFO(g_logger) << res.getVal();
 
     // 第三种调用接口，异步回调
-    con->async_call<int>([](acid::rpc::Result<int> res){
+    con->callback("add", 114514, 114514, [](acid::rpc::Result<int> res){
         ACID_LOG_INFO(g_logger) << res.getVal();
-    }, "add", 123, 321);
+    });
 
     // 测试并发
     int n=0;
     while(n != 10000) {
         n++;
-        con->async_call<int>([](acid::rpc::Result<int> res){
+        con->callback("add", 0, n, [](acid::rpc::Result<int> res){
             ACID_LOG_INFO(g_logger) << res.getVal();
-        }, "add", 0, n);
+        });
     }
     // 异步接口必须保证在得到结果之前程序不能退出
     sleep(3);

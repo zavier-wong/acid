@@ -11,6 +11,7 @@
 #include "acid/net/socket.h"
 #include "acid/net/socket_stream.h"
 #include "acid/sync.h"
+#include "acid/traits.h"
 #include "protocol.h"
 #include "route_strategy.h"
 #include "rpc.h"
@@ -85,34 +86,38 @@ public:
      * @param[in] name 函数名
      * @param[in] ps 可变参
      */
-    template<typename R, typename... Params>
-    void async_call(std::function<void(Result<R>)> callback, const std::string& name, Params&& ... ps) {
-        std::function<Result<R>()> task = [name, ps..., this] () -> Result<R> {
-            return call<R>(name, ps...);
-        };
+    template<typename... Params>
+    void callback(const std::string& name, Params&&... ps) {
+        static_assert(sizeof...(ps), "without a callback function");
+        auto tp = std::make_tuple(ps...);
+        constexpr auto size = std::tuple_size<typename std::decay<decltype(tp)>::type>::value;
+        auto cb = std::get<size-1>(tp);
+        static_assert(function_traits<decltype(cb)>{}.arity == 1, "callback type not support");
+        using res = typename function_traits<decltype(cb)>::args<0>::type;
+        using rt = typename res::row_type;
+        static_assert(std::is_invocable_v<decltype(cb), Result<rt>>, "callback type not support");
         RpcClient::ptr self = shared_from_this();
-        go [callback, task, self]() mutable {
-            callback(task());
-            self = nullptr;
+        go [cb = std::move(cb), name = std::move(name), tp = std::move(tp), size, self, this] {
+            auto proxy = [&cb, &name, &tp, &size, &self, this]<std::size_t... Index>(std::index_sequence<Index...>){
+                cb(call<rt>(name, std::get<Index>(tp)...));
+            };
+            proxy(std::make_index_sequence<size - 1>{});
         };
     }
-
     /**
-     * @brief 异步 future 调用
+     * @brief 异步调用，返回一个 Channel
      */
     template<typename R,typename... Params>
-    std::future<Result<R>> async_call(const std::string& name, Params&& ... ps) {
-        std::function<Result<R>()> task = [name, ps..., this] () -> Result<R> {
-            return call<R>(name, ps...);
-        };
-        auto promise = std::make_shared<std::promise<Result<R>>>();
+    Channel<Result<R>> async_call(const std::string& name, Params&& ... ps) {
+        Channel<Result<R>> chan(1);
         RpcClient::ptr self = shared_from_this();
-        go [task, promise, self]() mutable {
-            promise->set_value(task());
+        go [self, chan, name, ps..., this] () mutable {
+            chan << call<R>(name, ps...);
             self = nullptr;
         };
-        return promise->get_future();
+        return chan;
     }
+
     /**
      * @brief 订阅消息
      * @param[in] key 订阅的key
@@ -242,8 +247,12 @@ private:
         }
 
         Serializer serializer(response->getContent());
-        serializer >> val;
-
+        try {
+            serializer >> val;
+        } catch (...) {
+            val.setCode(RPC_NO_MATCH);
+            val.setMsg("return value not match");
+        }
         return val;
     }
 
