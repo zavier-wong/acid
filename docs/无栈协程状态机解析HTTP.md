@@ -1,6 +1,6 @@
-ºÍÆÕÍ¨µÄHTTP×´Ì¬»úÒ»Ñù£¬ÎÒÃÇÊ¹ÓÃÁËÒ»¸öÖ÷´Ó×´Ì¬»úÀ´½âÎö¡£²»Í¬µÄÊÇÕâÀï½«´Ó×´Ì¬»ú¸ÄÔì³ÉĞ­³Ì×´Ì¬»ú£¬ÃâÈ¥ÁË·±ËöµÄ×´Ì¬»»£¬Ê¹½âÎöÁ÷³ÌµÄ¿É¶ÁĞÔ¡¢¿ÉÎ¬»¤ĞÔ¶¼´ó´óÌá¸ß¡£ÓÉÓÚÎŞÕ»Ğ­³ÌµÄĞÔÄÜÏàµ±ºÃ£¬½âÎöÒ²ÓĞ×Å²»´íµÄĞÔÄÜ¡£
+å’Œæ™®é€šçš„HTTPçŠ¶æ€æœºä¸€æ ·ï¼Œæˆ‘ä»¬ä½¿ç”¨äº†ä¸€ä¸ªä¸»ä»çŠ¶æ€æœºæ¥è§£æã€‚ä¸åŒçš„æ˜¯è¿™é‡Œå°†ä»çŠ¶æ€æœºæ”¹é€ æˆåç¨‹çŠ¶æ€æœºï¼Œå…å»äº†ç¹ççš„çŠ¶æ€æ¢ï¼Œä½¿è§£ææµç¨‹çš„å¯è¯»æ€§ã€å¯ç»´æŠ¤æ€§éƒ½å¤§å¤§æé«˜ã€‚ç”±äºæ— æ ˆåç¨‹çš„æ€§èƒ½ç›¸å½“å¥½ï¼Œè§£æä¹Ÿæœ‰ç€ä¸é”™çš„æ€§èƒ½ã€‚
 
-¹ØÓÚcpp20Ğ­³ÌµÄÊ¹ÓÃ½Ì³ÌÒÑ¾­ºÜ¶àÁË£¬ÕâÀï²»¹ı¶à½éÉÜÓï·¨ÁË¡£µ«Ä¿Ç°±ê×¼¿âÈ±ÉÙĞ­³Ì×é¼ş£¬ÏÈ¼òµ¥Ğ´Ò»¸ö`promise_type`£¬ÎÒÃÇÖ÷ÒªÊ¹ÓÃµ½ÁË`co_return`ºÍ`co_yeild`£¬ËùÒÔÊµÏÖÁË`promise_type`µÄ`return_value`ºÍ`yield_value`¡£
+å…³äºcpp20åç¨‹çš„ä½¿ç”¨æ•™ç¨‹å·²ç»å¾ˆå¤šäº†ï¼Œè¿™é‡Œä¸è¿‡å¤šä»‹ç»è¯­æ³•äº†ã€‚ä½†ç›®å‰æ ‡å‡†åº“ç¼ºå°‘åç¨‹ç»„ä»¶ï¼Œå…ˆç®€å•å†™ä¸€ä¸ª`promise_type`ï¼Œæˆ‘ä»¬ä¸»è¦ä½¿ç”¨åˆ°äº†`co_return`å’Œ`co_yeild`ï¼Œæ‰€ä»¥å®ç°äº†`promise_type`çš„`return_value`å’Œ`yield_value`ã€‚
 
 ```cpp
 template<class T>
@@ -33,36 +33,36 @@ private:
 ```
 
 
-ËäÈ»´Ó×´Ì¬»úÊ¹ÓÃĞ­³ÌÏû³ıÁËÏÔÊ½µÄ×´Ì¬£¬µ«Ö÷×´Ì¬»ú»¹ÊÇĞèÒª×´Ì¬×ªÒÆ£¬¶¨ÒåÁËÒÔÏÂµÄÖ÷×´Ì¬
+è™½ç„¶ä»çŠ¶æ€æœºä½¿ç”¨åç¨‹æ¶ˆé™¤äº†æ˜¾å¼çš„çŠ¶æ€ï¼Œä½†ä¸»çŠ¶æ€æœºè¿˜æ˜¯éœ€è¦çŠ¶æ€è½¬ç§»ï¼Œå®šä¹‰äº†ä»¥ä¸‹çš„ä¸»çŠ¶æ€
 ```cpp
-/// Ö÷×´Ì¬»úµÄ×´Ì¬
+/// ä¸»çŠ¶æ€æœºçš„çŠ¶æ€
 enum CheckState{
-	NO_CHECK,		// ³õÊ¼×´Ì¬
-	CHECK_LINE,		// ÕıÔÚ½âÎöÇëÇóĞĞ
-	CHECK_HEADER,	// ÕıÔÚ½âÎöÇëÇóÍ·
-	CHECK_CHUNK		// ½âÎöchunk
+	NO_CHECK,		// åˆå§‹çŠ¶æ€
+	CHECK_LINE,		// æ­£åœ¨è§£æè¯·æ±‚è¡Œ
+	CHECK_HEADER,	// æ­£åœ¨è§£æè¯·æ±‚å¤´
+	CHECK_CHUNK		// è§£æchunk
 };
 ```
-¶¨Òå´íÎóÂë
+å®šä¹‰é”™è¯¯ç 
 ```cpp
- /// ´íÎóÂë
+ /// é”™è¯¯ç 
 enum Error {
-	NO_ERROR = 0,		// Õı³£½âÎö
-	INVALID_METHOD,		// ÎŞĞ§µÄ Method
-	INVALID_PATH,		// ÎŞĞ§µÄ Path 
-	INVALID_VERSION,	// ÎŞĞ§µÄ Version
-	INVALID_LINE,		// ÎŞĞ§µÄÇëÇóĞĞ
-	INVALID_HEADER,		// ÎŞĞ§µÄÇëÇóÍ·
-	INVALID_CODE,		// ÎŞĞ§µÄ Code
-	INVALID_REASON,		// ÎŞĞ§µÄ Reason
-	INVALID_CHUNK		// ÎŞĞ§µÄ Chunk
+	NO_ERROR = 0,		// æ­£å¸¸è§£æ
+	INVALID_METHOD,		// æ— æ•ˆçš„ Method
+	INVALID_PATH,		// æ— æ•ˆçš„ Path 
+	INVALID_VERSION,	// æ— æ•ˆçš„ Version
+	INVALID_LINE,		// æ— æ•ˆçš„è¯·æ±‚è¡Œ
+	INVALID_HEADER,		// æ— æ•ˆçš„è¯·æ±‚å¤´
+	INVALID_CODE,		// æ— æ•ˆçš„ Code
+	INVALID_REASON,		// æ— æ•ˆçš„ Reason
+	INVALID_CHUNK		// æ— æ•ˆçš„ Chunk
 };
 ```
 
-ÓÉÓÚRequestºÍResponseµÄ¸ñÊ½Ò»Ñù¶¼ÊÇÇëÇóĞĞ£¬ÇëÇóÍ·£¬ÕıÎÄ£¬ËùÒÔÕâÁ½¸öÖ÷×´Ì¬»úÒ»Ñù£¬¿¿parse_lineºÍparse_headerÁ½¸öĞéº¯Êı¶àÌ¬À´ÊµÏÖ²»Í¬µÄ´Ó×´Ì¬»ú¡£
+ç”±äºRequestå’ŒResponseçš„æ ¼å¼ä¸€æ ·éƒ½æ˜¯è¯·æ±‚è¡Œï¼Œè¯·æ±‚å¤´ï¼Œæ­£æ–‡ï¼Œæ‰€ä»¥è¿™ä¸¤ä¸ªä¸»çŠ¶æ€æœºä¸€æ ·ï¼Œé parse_lineå’Œparse_headerä¸¤ä¸ªè™šå‡½æ•°å¤šæ€æ¥å®ç°ä¸åŒçš„ä»çŠ¶æ€æœºã€‚
 
 ```cpp
-// Ö÷×´Ì¬»ú
+// ä¸»çŠ¶æ€æœº
 size_t HttpParser::execute(char *data, size_t len, bool chunk) {
     ...
     size_t offset = 0;
@@ -72,9 +72,9 @@ size_t HttpParser::execute(char *data, size_t len, bool chunk) {
             m_checkState = CHECK_LINE;
             m_parser = parse_line();
         }
-            // ½âÎöÇëÇóĞĞ
+            // è§£æè¯·æ±‚è¡Œ
         case CHECK_LINE: {
-			// ¶ÔÇëÇóĞĞµÄÃ¿¸ö×Ö·û½âÎö
+			// å¯¹è¯·æ±‚è¡Œçš„æ¯ä¸ªå­—ç¬¦è§£æ
             for(; i < len; ++i){
                 m_cur = data + i;
                 m_parser.resume();
@@ -95,9 +95,9 @@ size_t HttpParser::execute(char *data, size_t len, bool chunk) {
                 return offset;
             }
         }
-        // ½âÎöÇëÇóÍ·
+        // è§£æè¯·æ±‚å¤´
         case CHECK_HEADER: {
-			// ¶ÔÇëÇóÍ·µÄÃ¿¸ö×Ö·û½âÎö
+			// å¯¹è¯·æ±‚å¤´çš„æ¯ä¸ªå­—ç¬¦è§£æ
             for(; i < len; ++i){
                 m_cur = data + i;
                 m_parser.resume();
@@ -117,10 +117,10 @@ size_t HttpParser::execute(char *data, size_t len, bool chunk) {
 }
 ```
 
-ÕâÊÇ½âÎöµÄ»Øµ÷º¯Êı£¬½áºÏÏÂÃæµÄ´Ó×´Ì¬»úÀ´¿´
+è¿™æ˜¯è§£æçš„å›è°ƒå‡½æ•°ï¼Œç»“åˆä¸‹é¢çš„ä»çŠ¶æ€æœºæ¥çœ‹
 
 ```cpp
-// Request»Øµ÷
+// Requestå›è°ƒ
 void on_request_method(const std::string& str);
 void on_request_path(const std::string& str);
 void on_request_query(const std::string& str);
@@ -128,7 +128,7 @@ void on_request_fragment(const std::string& str) ;
 void on_request_version(const std::string& str);
 void on_request_header(const std::string& key, const std::string& val);
 void on_request_header_done();
-// Response»Øµ÷
+// Responseå›è°ƒ
 void on_response_version(const std::string& str);
 void on_response_status(const std::string& str);
 void on_response_reason(const std::string& str);
@@ -137,15 +137,15 @@ void on_response_header_done();
 void on_response_chunk(const std::string& str);
 ```
 
-½ÓÏÂÀ´¾ÍÊÇĞ­³Ì×´Ì¬»úµÄÖ÷Òª²¿·Ö£¬Õâ¸öÊÇ½âÎöRequestµÄÇëÇóĞĞµÄ´Ó×´Ì¬»ú£¬¿ÉÒÔ¿´µ½½âÎöµÄÁ÷³Ì·Ç³£ÇåÎú£¬Ã¿½âÎöÍêÒ»²¿·Ö¾Í»á´¥·¢¶ÔÓ¦µÄ»Øµ÷À´»ñÈ¡ÇëÇóÄÚÈİ¡£ÖØµã¾ÍÔÚÓÚparse_line()Ã¿´Îresumeºó¶¼ÊÇÔÚÉÏÒ»´Î½âÎö¹ı³ÌµÄÏÂÒ»²½£¬ÒòÎªĞ­³Ì±¾Éí¾ÍÊÇÒ»¸ö×´Ì¬»ú£¬ÀûÓÃĞ­³Ì¾ÍÏû³ıÁËÏÔÊ½×´Ì¬×ªÒÆ£¬Ê¹µÃ½âÎö¹ı³ÌÁ¬¹á£¬Âß¼­ÇåÎú¡£
+æ¥ä¸‹æ¥å°±æ˜¯åç¨‹çŠ¶æ€æœºçš„ä¸»è¦éƒ¨åˆ†ï¼Œè¿™ä¸ªæ˜¯è§£æRequestçš„è¯·æ±‚è¡Œçš„ä»çŠ¶æ€æœºï¼Œå¯ä»¥çœ‹åˆ°è§£æçš„æµç¨‹éå¸¸æ¸…æ™°ï¼Œæ¯è§£æå®Œä¸€éƒ¨åˆ†å°±ä¼šè§¦å‘å¯¹åº”çš„å›è°ƒæ¥è·å–è¯·æ±‚å†…å®¹ã€‚é‡ç‚¹å°±åœ¨äºparse_line()æ¯æ¬¡resumeåéƒ½æ˜¯åœ¨ä¸Šä¸€æ¬¡è§£æè¿‡ç¨‹çš„ä¸‹ä¸€æ­¥ï¼Œå› ä¸ºåç¨‹æœ¬èº«å°±æ˜¯ä¸€ä¸ªçŠ¶æ€æœºï¼Œåˆ©ç”¨åç¨‹å°±æ¶ˆé™¤äº†æ˜¾å¼çŠ¶æ€è½¬ç§»ï¼Œä½¿å¾—è§£æè¿‡ç¨‹è¿è´¯ï¼Œé€»è¾‘æ¸…æ™°ã€‚
 
 ```cpp
 /**
-* @brief ½âÎö HTTP ÇëÇóµÄÇëÇóĞĞ
+* @brief è§£æ HTTP è¯·æ±‚çš„è¯·æ±‚è¡Œ
 */
 Task<HttpParser::Error> HttpRequestParser::parse_line() {
     std::string buff;
-    // ¶ÁÈ¡method
+    // è¯»å–method
     while(isalpha(*m_cur)) {
         buff.push_back(*m_cur);
         co_yield NO_ERROR;
@@ -154,10 +154,10 @@ Task<HttpParser::Error> HttpRequestParser::parse_line() {
         co_return INVALID_METHOD;
     }
     if(*m_cur != ' ') {
-        // methodÖ®ºó²»ÊÇ¿Õ¸ñ£¬¸ñÊ½´íÎó¡£
+        // methodä¹‹åä¸æ˜¯ç©ºæ ¼ï¼Œæ ¼å¼é”™è¯¯ã€‚
         co_return INVALID_METHOD;
     } else {
-        // ¶ÁÍêmethod, ´¥·¢»Øµ÷º¯Êı
+        // è¯»å®Œmethod, è§¦å‘å›è°ƒå‡½æ•°
         on_request_method(buff);
         if (m_error) {
             co_return INVALID_METHOD;
@@ -165,13 +165,13 @@ Task<HttpParser::Error> HttpRequestParser::parse_line() {
         buff = "";
         co_yield NO_ERROR;
     }
-    // ¶ÁÈ¡Â·¾¶
+    // è¯»å–è·¯å¾„
     while(std::isprint(*m_cur) && strchr(" ?", *m_cur) == nullptr) {
         buff.push_back(*m_cur);
         co_yield NO_ERROR;
     }
     if(buff.empty()) {
-        // pathÎª¿Õ£¬¸ñÊ½´íÎó
+        // pathä¸ºç©ºï¼Œæ ¼å¼é”™è¯¯
         co_return INVALID_PATH;
     }
 
@@ -179,7 +179,7 @@ Task<HttpParser::Error> HttpRequestParser::parse_line() {
         on_request_path(buff);
         buff = "";
         co_yield NO_ERROR;
-        // ¶ÁÈ¡query
+        // è¯»å–query
         while(std::isprint(*m_cur) && strchr(" #", *m_cur) == nullptr) {
             buff.push_back(*m_cur);
             co_yield NO_ERROR;
@@ -188,13 +188,13 @@ Task<HttpParser::Error> HttpRequestParser::parse_line() {
         if(*m_cur == '#'){
             on_request_query(buff);
             buff = "";
-            // ¶ÁÈ¡fragment
+            // è¯»å–fragment
             while(std::isprint(*m_cur) && strchr(" ", *m_cur) == nullptr) {
                 buff.push_back(*m_cur);
                 co_yield NO_ERROR;
             }
             if(*m_cur != ' '){
-                // fragmentÖ®ºó²»ÊÇ¿Õ¸ñ£¬¸ñÊ½´íÎó¡£
+                // fragmentä¹‹åä¸æ˜¯ç©ºæ ¼ï¼Œæ ¼å¼é”™è¯¯ã€‚
                 co_return INVALID_PATH;
             } else {
                 on_request_fragment(buff);
@@ -203,7 +203,7 @@ Task<HttpParser::Error> HttpRequestParser::parse_line() {
             }
 
         } else if(*m_cur != ' '){
-            // queryÖ®ºó²»ÊÇ¿Õ¸ñ£¬¸ñÊ½´íÎó¡£
+            // queryä¹‹åä¸æ˜¯ç©ºæ ¼ï¼Œæ ¼å¼é”™è¯¯ã€‚
             co_return INVALID_PATH;
         } else {
             on_request_query(buff);
@@ -211,7 +211,7 @@ Task<HttpParser::Error> HttpRequestParser::parse_line() {
             co_yield NO_ERROR;
         }
     } else if(*m_cur != ' '){
-        // pathÖ®ºó²»ÊÇ¿Õ¸ñ£¬¸ñÊ½´íÎó¡£
+        // pathä¹‹åä¸æ˜¯ç©ºæ ¼ï¼Œæ ¼å¼é”™è¯¯ã€‚
         co_return INVALID_PATH;
     } else {
         on_request_path(buff);
@@ -246,40 +246,40 @@ Task<HttpParser::Error> HttpRequestParser::parse_line() {
     if(*m_cur != '\n') {
         co_return INVALID_LINE;
     }
-    // ×´Ì¬×ªÒÆ
+    // çŠ¶æ€è½¬ç§»
     m_checkState = CHECK_HEADER;
     co_return NO_ERROR;
 }
 ```
 
-½âÎöRequestµÄÇëÇóÍ·
+è§£æRequestçš„è¯·æ±‚å¤´
 
 ```cpp
 /**
-* @brief ½âÎö HTTP ÇëÇóµÄÇëÇóÍ·
+* @brief è§£æ HTTP è¯·æ±‚çš„è¯·æ±‚å¤´
 */
 Task<HttpParser::Error> HttpRequestParser::parse_header() {
 
     std::string key, val;
-    // Ñ­»·¶ÁÈ¡header£¬Ö±µ½¶ÁÈ¡µ½\r\n\r\nÊ±Íê³É
+    // å¾ªç¯è¯»å–headerï¼Œç›´åˆ°è¯»å–åˆ°\r\n\r\næ—¶å®Œæˆ
     while (!isFinished()){
-        // ¶ÁÈ¡key
-        while(std::isprint(*m_cur) && *m_cur != ':') { // ¶ÁÈ¡ËùÓĞÁ¬ĞøµÄ×Ö·û´æ´¢ÈëkeyÖĞ¡£
+        // è¯»å–key
+        while(std::isprint(*m_cur) && *m_cur != ':') { // è¯»å–æ‰€æœ‰è¿ç»­çš„å­—ç¬¦å­˜å‚¨å…¥keyä¸­ã€‚
             key.push_back(*m_cur);
             co_yield NO_ERROR;
         }
-        // ¶ÁÈ¡:
+        // è¯»å–:
         if(*m_cur != ':') {
             co_return INVALID_HEADER;
         } else {
             co_yield NO_ERROR;
         }
-        // ¶ÁÈ¡¿Õ¸ñ
+        // è¯»å–ç©ºæ ¼
         while(*m_cur == ' ') {
             co_yield NO_ERROR;
         }
 
-        // ¶ÁÈ¡value
+        // è¯»å–value
         while (std::isprint(*m_cur)) {
             val.push_back(*m_cur);
             co_yield NO_ERROR;
@@ -294,15 +294,15 @@ Task<HttpParser::Error> HttpRequestParser::parse_header() {
         co_yield NO_ERROR;
         if(*m_cur == '\r') {
             co_yield NO_ERROR;
-            // ÅĞ¶ÏÊÇ²»ÊÇ \r\n\r\n
+            // åˆ¤æ–­æ˜¯ä¸æ˜¯ \r\n\r\n
             if(*m_cur == '\n'){
                 on_request_header(key, val);
                 on_request_header_done();
                 m_finish = true;
-                // ×´Ì¬×ªÒÆ
+                // çŠ¶æ€è½¬ç§»
                 m_checkState = NO_CHECK;
                 //yield;
-                //»áÍË³öÑ­»·
+                //ä¼šé€€å‡ºå¾ªç¯
             } else {
                 co_return INVALID_HEADER;
             }
@@ -314,22 +314,22 @@ Task<HttpParser::Error> HttpRequestParser::parse_header() {
             co_yield NO_ERROR;
         }
     }
-    // ×´Ì¬×ªÒÆ
+    // çŠ¶æ€è½¬ç§»
     m_checkState = NO_CHECK;
     co_return NO_ERROR;
 }
 ```
 
-½âÎöResponseµÄÇëÇóĞĞ
+è§£æResponseçš„è¯·æ±‚è¡Œ
 
 ```cpp
 /**
-* @brief ½âÎö HTTP ÏìÓ¦µÄÇëÇóĞĞ
+* @brief è§£æ HTTP å“åº”çš„è¯·æ±‚è¡Œ
 */
 Task<HttpParser::Error> HttpResponseParser::parse_line() {
     std::string buff;
     const char* version = "HTTP/1.";
-    // ÅĞ¶ÏHTTP°æ±¾ÊÇ·ñºÏ·¨
+    // åˆ¤æ–­HTTPç‰ˆæœ¬æ˜¯å¦åˆæ³•
     while (*version) {
         if(*m_cur != *version) {
             co_return INVALID_VERSION;
@@ -350,40 +350,40 @@ Task<HttpParser::Error> HttpResponseParser::parse_line() {
         buff = "";
         co_yield NO_ERROR;
     }
-    // Ìø¹ı¿Õ¸ñ
+    // è·³è¿‡ç©ºæ ¼
     while(*m_cur == ' ') {
         co_yield NO_ERROR;
     }
-    // ¶ÁÈ¡status
-    while(isdigit(*m_cur)) { // ¶ÁÈ¡ËùÓĞÁ¬ĞøµÄ×Ö·û´æ´¢Èëmethod_ÖĞ¡£
+    // è¯»å–status
+    while(isdigit(*m_cur)) { // è¯»å–æ‰€æœ‰è¿ç»­çš„å­—ç¬¦å­˜å‚¨å…¥method_ä¸­ã€‚
         buff.push_back(*m_cur);
         co_yield NO_ERROR;
     }
-    // ¶ÁÍêÁËmethod
+    // è¯»å®Œäº†method
     if(buff.empty()) {
         co_return INVALID_CODE;
     }
-    // ¶ÁÈ¡¿Õ¸ñ
+    // è¯»å–ç©ºæ ¼
     if(*m_cur != ' ') {
-        // statusÖ®ºó²»ÊÇ¿Õ¸ñ£¬¸ñÊ½´íÎó¡£
+        // statusä¹‹åä¸æ˜¯ç©ºæ ¼ï¼Œæ ¼å¼é”™è¯¯ã€‚
         co_return INVALID_CODE;
     } else {
-        // ¶ÁÍêstatus, ´¥·¢»Øµ÷º¯Êı
+        // è¯»å®Œstatus, è§¦å‘å›è°ƒå‡½æ•°
         on_response_status(buff);
         buff = "";
         co_yield NO_ERROR;
     }
-    // Ìø¹ı¿Õ¸ñ
+    // è·³è¿‡ç©ºæ ¼
     while(*m_cur == ' ') {
         co_yield NO_ERROR;
     }
-    // ¶ÁÈ¡Reason
+    // è¯»å–Reason
     while(std::isalpha(*m_cur) || *m_cur == ' ') {
         buff.push_back(*m_cur);
         co_yield NO_ERROR;
     }
     if(buff.empty()) {
-        // pathÎª¿Õ£¬¸ñÊ½´íÎó
+        // pathä¸ºç©ºï¼Œæ ¼å¼é”™è¯¯
         co_return INVALID_REASON;
     }
 
@@ -395,40 +395,40 @@ Task<HttpParser::Error> HttpResponseParser::parse_line() {
         co_return INVALID_LINE;
     }
     on_response_reason(buff);
-    // ×´Ì¬×ªÒÆ
+    // çŠ¶æ€è½¬ç§»
     m_checkState = CHECK_HEADER;
     co_return NO_ERROR;
 }
 ```
 
-½âÎöResponseµÄÇëÇóÍ·
+è§£æResponseçš„è¯·æ±‚å¤´
 
 ```cpp
 /**
-* @brief ½âÎö HTTP ÏìÓ¦µÄÇëÇóÍ·
+* @brief è§£æ HTTP å“åº”çš„è¯·æ±‚å¤´
 */
 Task<HttpParser::Error> HttpResponseParser::parse_header() {
     std::string key, val;
-    // Ñ­»·¶ÁÈ¡header£¬Ö±µ½¶ÁÈ¡µ½\r\n\r\nÊ±Íê³É
+    // å¾ªç¯è¯»å–headerï¼Œç›´åˆ°è¯»å–åˆ°\r\n\r\næ—¶å®Œæˆ
     while (!isFinished()){
-        // ¶ÁÈ¡key
+        // è¯»å–key
         while(std::isprint(*m_cur) && strchr(":", *m_cur) == nullptr) {
             key.push_back(*m_cur);
             co_yield NO_ERROR;
         }
-        // ¶ÁÈ¡:
+        // è¯»å–:
         if(*m_cur != ':') {
             co_return INVALID_HEADER;
         } else {
             co_yield NO_ERROR;
         }
-        // ¶ÁÈ¡¿Õ¸ñ
+        // è¯»å–ç©ºæ ¼
         while(*m_cur == ' ') {
             co_yield NO_ERROR;
         }
 
-        // ¶ÁÈ¡value
-        // ¶ÁÈ¡ËùÓĞÁ¬ĞøµÄ×Ö·û´æ´¢ÈëvalÖĞ¡£
+        // è¯»å–value
+        // è¯»å–æ‰€æœ‰è¿ç»­çš„å­—ç¬¦å­˜å‚¨å…¥valä¸­ã€‚
         while (std::isprint(*m_cur)) {
             val.push_back(*m_cur);
             co_yield NO_ERROR;
@@ -443,15 +443,15 @@ Task<HttpParser::Error> HttpResponseParser::parse_header() {
         co_yield NO_ERROR;
         if(*m_cur == '\r') {
             co_yield NO_ERROR;
-            // ÅĞ¶ÏÊÇ²»ÊÇ \r\n\r\n
+            // åˆ¤æ–­æ˜¯ä¸æ˜¯ \r\n\r\n
             if(*m_cur == '\n'){
                 on_response_header(key, val);
                 on_response_header_done();
                 m_finish = true;
-                // ×´Ì¬×ªÒÆ
+                // çŠ¶æ€è½¬ç§»
                 m_checkState = NO_CHECK;
                 //co_yield NO_ERROR;
-                //»áÍË³öÑ­»·
+                //ä¼šé€€å‡ºå¾ªç¯
             } else {
                 co_return INVALID_HEADER;
             }
@@ -463,15 +463,15 @@ Task<HttpParser::Error> HttpResponseParser::parse_header() {
             co_yield NO_ERROR;
         }
     }
-    // ×´Ì¬×ªÒÆ
+    // çŠ¶æ€è½¬ç§»
     m_checkState = NO_CHECK;
     co_return NO_ERROR;
 }
 ```
 
-ÒÔÉÏµÄ½âÎö»ù±¾¶¼´óÍ¬Ğ¡Òì£¬Ö»ÒªÀí½âÁËÒ»¸öĞ­³Ì×´Ì¬»ú£¬Äã¾Í»á·¢ÏÖÈÎºÎµÄ×´Ì¬»ú»ù±¾¶¼¿ÉÒÔ¸ÄĞ´³ÉĞ­³ÌĞÎÊ½µÄ¡£
+ä»¥ä¸Šçš„è§£æåŸºæœ¬éƒ½å¤§åŒå°å¼‚ï¼Œåªè¦ç†è§£äº†ä¸€ä¸ªåç¨‹çŠ¶æ€æœºï¼Œä½ å°±ä¼šå‘ç°ä»»ä½•çš„çŠ¶æ€æœºåŸºæœ¬éƒ½å¯ä»¥æ”¹å†™æˆåç¨‹å½¢å¼çš„ã€‚
 
-¶ÁÍêÍ·²¿ĞÅÏ¢ºó£¬¾Í¿ÉÒÔÍ¨¹ıContentLengthÀ´¶ÁÈ¡ÕıÎÄµÄÄÚÈİÁË£¬ÍêÕûµÄĞ­Òé½ÓÊÕÈçÏÂ¡£
+è¯»å®Œå¤´éƒ¨ä¿¡æ¯åï¼Œå°±å¯ä»¥é€šè¿‡ContentLengthæ¥è¯»å–æ­£æ–‡çš„å†…å®¹äº†ï¼Œå®Œæ•´çš„åè®®æ¥æ”¶å¦‚ä¸‹ã€‚
 
 ```cpp
 HttpRequest::ptr HttpSession::recvRequest() {
@@ -521,10 +521,10 @@ HttpRequest::ptr HttpSession::recvRequest() {
 }
 ```
 
-## ×îºó
+## æœ€å
 
-Í¸¹ıÏÖÏó¿´±¾ÖÊ£¬Ğ­³Ìµ×²ãÍ¨¹ıĞ­³ÌÖ¡À´±£´æÁËÉÏÏÂÎÄ£¬×´Ì¬»úÒ²Òş²ØÔÚÁËÀïÃæ£¬Ê¹µÃÎÒÃÇ²»ÓÃÏÔÊ½¶¨Òå×´Ì¬£¬ÃâÈ¥ÁË·±ËöµÄ×´Ì¬×ª»»¡£ÈçÍ¬´óÀĞËùËµ£¬Ğ­³ÌÖ®ÓÚ×´Ì¬»ú¾ÍÏñµİ¹éÖ®ÓÚÕ»¡£
+é€è¿‡ç°è±¡çœ‹æœ¬è´¨ï¼Œåç¨‹åº•å±‚é€šè¿‡åç¨‹å¸§æ¥ä¿å­˜äº†ä¸Šä¸‹æ–‡ï¼ŒçŠ¶æ€æœºä¹Ÿéšè—åœ¨äº†é‡Œé¢ï¼Œä½¿å¾—æˆ‘ä»¬ä¸ç”¨æ˜¾å¼å®šä¹‰çŠ¶æ€ï¼Œå…å»äº†ç¹ççš„çŠ¶æ€è½¬æ¢ã€‚å¦‚åŒå¤§ä½¬æ‰€è¯´ï¼Œåç¨‹ä¹‹äºçŠ¶æ€æœºå°±åƒé€’å½’ä¹‹äºæ ˆã€‚
 
-Ğ­³ÌµÄÊ¹ÓÃ³¡ºÏ²»Ö¹Òì²½£¬ÕâÊÇÒ»¸öÇ¿´óµÄÀûÆ÷£¬ÖµµÃÎÒÃÇ¸üÉîÈëÈ¥ÁË½â¡£
+åç¨‹çš„ä½¿ç”¨åœºåˆä¸æ­¢å¼‚æ­¥ï¼Œè¿™æ˜¯ä¸€ä¸ªå¼ºå¤§çš„åˆ©å™¨ï¼Œå€¼å¾—æˆ‘ä»¬æ›´æ·±å…¥å»äº†è§£ã€‚
 
-ÓĞĞËÈ¤¿ÉÒÔÀ´¿´¿´ÍêÕûµÄ´úÂë https://github.com/zavier-wong/acid/blob/main/source/http/parse.cpp
+æœ‰å…´è¶£å¯ä»¥æ¥çœ‹çœ‹å®Œæ•´çš„ä»£ç  https://github.com/zavier-wong/acid/blob/main/source/http/parse.cpp
