@@ -1,5 +1,8 @@
 /cmake-build-debug/
 /cmake-build-release/
+/build
+/.xmake
+xmake.lua 
 
 # Prerequisites
 *.d

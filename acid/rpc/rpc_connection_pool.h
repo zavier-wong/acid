@@ -41,7 +41,7 @@ public:
         constexpr auto size = std::tuple_size<typename std::decay<decltype(tp)>::type>::value;
         auto cb = std::get<size-1>(tp);
         static_assert(function_traits<decltype(cb)>{}.arity == 1, "callback type not support");
-        using res = typename function_traits<decltype(cb)>::args<0>::type;
+        using res = typename function_traits<decltype(cb)>:: template args<0>::type;
         using rt = typename res::row_type;
         static_assert(std::is_invocable_v<decltype(cb), Result<rt>>, "callback type not support");
         RpcConnectionPool::ptr self = shared_from_this();
