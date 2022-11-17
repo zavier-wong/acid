@@ -33,9 +33,8 @@ void b() {
 }
 
 void test_mutex() {
-    IOManager loop{};
-    loop.submit(a);//->submit(b);
-    loop.submit(b);
+    go a;
+    go b;
 }
 
 void cond_a() {
@@ -59,10 +58,9 @@ void cond_c() {
     condVar.notify();
 }
 void test_condvar() {
-    IOManager loop{};
-    loop.submit(cond_a);//->submit(b);
-    loop.submit(cond_b);
-    loop.submit(cond_c);
+    go cond_a;
+    go cond_b;
+    go cond_c;
 }
 CoSemaphore sem(5);
 void sem_a() {
@@ -87,9 +85,8 @@ void sem_b() {
     }
 }
 void test_sem() {
-    IOManager loop{};
-    loop.submit(sem_a);//->submit(b);
-    loop.submit(sem_b);
+    go sem_a;
+    go sem_b;
 }
 
 void chan_a(Channel<int> chan) {
@@ -109,10 +106,13 @@ void chan_b(Channel<int> chan) {
     ACID_LOG_INFO(g_logger) << "close";
 }
 void test_channel() {
-    IOManager loop{};
     Channel<int> chan(5);
-    loop.submit(std::bind(chan_a, chan));
-    loop.submit(std::bind(chan_b, chan));
+    go [chan] {
+        chan_a(chan);
+    };
+    go [chan] {
+        chan_b(chan);
+    };
 }
 void test_countdown() {
     Go {
@@ -136,10 +136,45 @@ void test_countdown() {
         LOG_DEBUG << cnt.getCount();
     };
 }
+void test_cond_wait_for() {
+    Go {
+        CoMutex::Lock lock(mutexType);
+        for (int i = 1; i < 10000; i *= 2) {
+            if (condVar.waitFor(lock, i)) {
+                ACID_LOG_INFO(g_logger) << "condvar notify";
+                return;
+            }
+            ACID_LOG_INFO(g_logger) << "condvar wait for " << i << " ms";
+        }
+    };
+    Go {
+        sleep(5);
+        condVar.notify();
+    };
+}
+void test_channel_wait_for() {
+    Channel<int> chan(5);
+    Go {
+        int val{};
+        for (int i = 1; i < 10000; i *= 2) {
+            if (chan.waitFor(val, i)) {
+                ACID_LOG_INFO(g_logger) << "channel val " << val;
+                return;
+            }
+            ACID_LOG_INFO(g_logger) << "channel wait for " << i << " ms";
+        }
+    };
+    Go {
+        sleep(5);
+        chan << 114514;
+    };
+}
 int main() {
     //test_mutex();
-    //est_condvar();
+    //test_condvar();
     //test_sem();
     //test_channel();
-    test_countdown();
+    //test_countdown();
+    //test_cond_wait_for();
+    test_channel_wait_for();
 }
