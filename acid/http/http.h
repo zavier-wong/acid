@@ -11,11 +11,11 @@
 #include <vector>
 #include <iostream>
 #include <sstream>
-#include "acid/json.h"
-#include "acid/lexical_cast.h"
+#include "third_party/json/single_include/nlohmann/json.hpp"
+#include "acid/common/lexical_cast.h"
 
-namespace acid::http{
-
+namespace acid::http {
+using Json = nlohmann::json;
 /* Request Methods */
 #define HTTP_METHOD_MAP(XX)         \
   XX(0,  DELETE,      DELETE)       \

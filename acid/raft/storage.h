@@ -6,6 +6,7 @@
 #define ACID_STORAGE_H
 #include <string>
 #include <optional>
+#include <libgo/libgo.h>
 #include "../rpc/serializer.h"
 #include "entry.h"
 #include "snapshot.h"
@@ -56,7 +57,7 @@ public:
 
 class MemoryStorage : public Storage {
 public:
-    using MutexType = CoMutex;
+    using MutexType = co::co_mutex;
     MemoryStorage();
     ~MemoryStorage() = default;
 

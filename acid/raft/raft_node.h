@@ -27,13 +27,14 @@ enum RaftState {
 class RaftNode : public acid::rpc::RpcServer {
 public:
     using ptr = std::shared_ptr<RaftNode>;
-    using MutexType = CoMutex;
+    using MutexType = co::co_mutex;
 
-    RaftNode(int64_t id, RaftLog rl, Channel<Entry> applyChan, Channel<std::string> proposeChan);
+    RaftNode(int64_t id, RaftLog rl, co::co_chan<Entry> applyChan, co::co_chan<std::string> proposeChan,
+             co::Scheduler* worker = &co_sched, co::Scheduler* accept_worker = &co_sched);
 
     ~RaftNode();
 
-    bool start() override;
+    void start() override;
     /**
      * @brief 增加 raft 节点
      * @param[in] id raft 节点id
@@ -88,6 +89,8 @@ private:
      */
     void rescheduleElection();
 
+    void resetHeartbeatTimer();
+
     void replicateOneRound(int64_t peer);
 
     bool needReplicating(int64_t peer);
@@ -127,21 +130,19 @@ private:
     // 对于每一台服务器，已知的已经复制到该服务器的最高日志条目的索引（初始值为0，单调递增）
     std::map<int64_t, int64_t> m_matchIndex;
     // 用于向replicator协程发送信号以批量复制日志
-    std::map<int64_t, CoCondVar> m_replicatorCond;
+    std::map<int64_t, co::co_condition_variable> m_replicatorCond;
     // 选举定时器，超时后节点将转换为候选人发起投票
-    Timer::ptr m_electionTimer;
+    co_timer_id m_electionTimer;
     // 心跳定时器，领导者定时发送日志维持心跳，和同步日志
-    Timer::ptr m_heartbeatTimer;
+    co_timer_id m_heartbeatTimer;
     // 一次发送的最大日志数量 TODO
     int64_t m_maxLogSize = 1000;
 
-    CoCondVar m_applyCond;
+    co::co_condition_variable m_applyCond;
     // 用来已通过raft达成共识的已提交的提议通知给其它组件的信道。
-    Channel<Entry> m_applyChan;
+    co::co_chan<Entry> m_applyChan;
     // 接收来自其它组件传入的需要通过raft达成共识的普通提议。
-    Channel<std::string> m_proposeChan;
-
-
+    co::co_chan<std::string> m_proposeChan;
     // 保存快照的目录路径
     std::string m_snapDir;
 

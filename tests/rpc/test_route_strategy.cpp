@@ -1,42 +1,37 @@
 //
 // Created by zavier on 2022/1/15.
 //
-
+#include <spdlog/spdlog.h>
 #include "acid/rpc/route_strategy.h"
 
-#include "acid/log.h"
-static acid::Logger::ptr g_logger = ACID_LOG_ROOT();
 std::vector<int> list{1, 2, 3, 4, 5};
 
 void test_random() {
     acid::rpc::RouteStrategy<int>::ptr strategy =
             acid::rpc::RouteEngine<int>::queryStrategy(acid::rpc::Strategy::Random);
-
-    ACID_LOG_DEBUG(g_logger) << "random";
+    SPDLOG_INFO("random");
     for ([[maybe_unused]] auto i: list) {
         auto a = strategy->select(list);
-        ACID_LOG_DEBUG(g_logger) << a;
+        SPDLOG_INFO(a);
     }
 }
 
 void test_poll() {
     acid::rpc::RouteStrategy<int>::ptr strategy =
             acid::rpc::RouteEngine<int>::queryStrategy(acid::rpc::Strategy::Polling);
-
-    ACID_LOG_DEBUG(g_logger) << "Poll";
+    SPDLOG_INFO("Poll");
     for ([[maybe_unused]] auto i: list) {
         auto a = strategy->select(list);
-        ACID_LOG_DEBUG(g_logger) << a;
+        SPDLOG_INFO(a);
     }
 }
 void test_hash() {
     acid::rpc::RouteStrategy<int>::ptr strategy =
             acid::rpc::RouteEngine<int>::queryStrategy(acid::rpc::Strategy::HashIP);
-
-    ACID_LOG_DEBUG(g_logger) << "Hash";
+    SPDLOG_INFO("Hash");
     for ([[maybe_unused]] auto i: list) {
         auto a = strategy->select(list);
-        ACID_LOG_DEBUG(g_logger) << a;
+        SPDLOG_INFO(a);
     }
 }
 int main() {

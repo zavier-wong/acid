@@ -5,6 +5,7 @@
 #ifndef ACID_RPC_SESSION_H
 #define ACID_RPC_SESSION_H
 
+#include <libgo/libgo.h>
 #include "acid/net/socket_stream.h"
 #include "protocol.h"
 
@@ -15,7 +16,7 @@ namespace acid::rpc {
 class RpcSession : public SocketStream {
 public:
     using ptr = std::shared_ptr<RpcSession>;
-    using MutexType = CoMutex;
+    using MutexType = co::co_mutex;
 
     /**
      * @brief 构造函数

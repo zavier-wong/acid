@@ -6,9 +6,10 @@
 #define ACID_SERVLET_H
 #include <functional>
 #include <memory>
+#include <libgo/libgo.h>
 #include "http.h"
 #include "http_session.h"
-#include "acid/sync.h"
+
 namespace acid::http {
 class Servlet {
 public:
@@ -36,7 +37,7 @@ private:
 class ServletDispatch : public Servlet{
 public:
     using ptr = std::shared_ptr<ServletDispatch>;
-    using RWMutexType = RWMutex;
+    using RWMutexType = co::co_rwmutex;
     ServletDispatch();
     int32_t handle(HttpRequest::ptr request, HttpResponse::ptr response, HttpSession::ptr session) override;
 

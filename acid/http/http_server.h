@@ -13,11 +13,7 @@
 namespace acid::http {
 class HttpServer : public TcpServer {
 public:
-    using ptr = std::shared_ptr<HttpServer>;
-    HttpServer(bool keepalive = false,
-               IOManager* worker = IOManager::GetThis(),
-               IOManager* accept_worker = IOManager::GetThis());
-
+    HttpServer(bool keepalive = false, co::Scheduler* worker = &co_sched, co::Scheduler* accept_worker = &co_sched);
     ServletDispatch::ptr getServletDispatch() const { return m_dispatch;}
     void setServletDispatch(ServletDispatch::ptr v) { m_dispatch = v;}
     void setName(const std::string& name) override;

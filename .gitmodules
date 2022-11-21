@@ -1,0 +1,9 @@
+[submodule "third_party/libgo"]
+	path = third_party/libgo
+	url = https://github.com/yyzybb537/libgo.git
+[submodule "third_party/spdlog"]
+	path = third_party/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "third_party/yaml-cpp"]
+	path = third_party/yaml-cpp
+	url = https://github.com/jbeder/yaml-cpp.git

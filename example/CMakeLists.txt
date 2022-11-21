@@ -1,28 +1,22 @@
+cmake_minimum_required(VERSION 2.8)
+project(example)
 
-include_directories(${PROJECT_SOURCE_DIR})
-link_directories(${PROJECT_SOURCE_DIR}/lib)
-link_directories(/usr/local/bin)
+add_subdirectory(rpc)
 
-include_directories(/usr/local/include/yaml-cpp)
-link_directories(/usr/local/lib)
+set(CMAKE_CXX_COMPILER "/usr/bin/g++-11")
+set(CMAKE_VERBOSE_MAKEFILE ON)
+set(CMAKE_CXX_FLAGS "-std=c++20 -D__const__=  -fPIC -fno-strict-aliasing -Wall ${CMAKE_CXX_FLAGS}")
 
-set(LIBS
-        acid
-        dl
-        pthread
-        yaml-cpp
-        )
+include_directories(${PROJECT_SOURCE_DIR}/../)
+link_directories(${PROJECT_SOURCE_DIR}/../lib)
+aux_source_directory(${PROJECT_SOURCE_DIR} SRC_LIST)
 
-#echo_server
-acid_add_executable(echo_server echo_server.cpp acid ${LIBS})
+foreach(var ${SRC_LIST})
+    string(REGEX REPLACE ".*/" "" var ${var})
+    string(REGEX REPLACE ".cpp" "" tgt ${var})
 
-#consumer.cpp
-acid_add_executable(consumer rpc/consumer.cpp acid ${LIBS})
+    add_executable(${tgt} ${var})
+    set(LINK_ARGS libgo acid pthread dl yaml-cpp)
 
-#consumer.cpp
-acid_add_executable(provider rpc/provider.cpp acid ${LIBS})
-
-#consumer.cpp
-acid_add_executable(registry rpc/registry.cpp acid ${LIBS})
-
-set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin/example)
+    target_link_libraries(${tgt} -Wl,--start-group ${LINK_ARGS} -Wl,--end-group)
+endforeach(var)

@@ -4,10 +4,9 @@
 
 #include "acid/rpc/serializer.h"
 #include "acid/rpc/rpc.h"
-#include "acid/log.h"
-#include "acid/config.h"
+#include "acid/common/config.h"
 #include <iostream>
-static acid::Logger::ptr g_logger = ACID_LOG_ROOT();
+
 void test1() {
     acid::rpc::Serializer s;
     acid::rpc::Result<int> r, t;
@@ -16,7 +15,7 @@ void test1() {
     s << r;
     s.reset();
     s >> t;
-    ACID_LOG_DEBUG(g_logger) << t.toString();
+    SPDLOG_INFO(t.toString());
 }
 void test2() {
     std::list<std::string> a;
@@ -27,7 +26,7 @@ void test2() {
     s.reset();
     std::list<std::string> b;
     s >> b;
-    ACID_LOG_DEBUG(g_logger) << std::endl << acid::LaxicalCast<std::list<std::string>,std::string>()(b);
+    SPDLOG_INFO(acid::LaxicalCast<std::list<std::string>,std::string>()(b));
 }
 void test3() {
     std::vector<std::string> a;
@@ -38,7 +37,7 @@ void test3() {
     s.reset();
     std::vector<std::string> b;
     s >> b;
-    ACID_LOG_DEBUG(g_logger) << std::endl << acid::LaxicalCast<std::vector<std::string>,std::string>()(b);
+    SPDLOG_INFO(acid::LaxicalCast<std::vector<std::string>,std::string>()(b));
 }
 
 void test4() {
@@ -48,7 +47,7 @@ void test4() {
     s.reset();
     std::set<std::string> b;
     s >> b;
-    ACID_LOG_DEBUG(g_logger) << std::endl << acid::LaxicalCast<std::set<std::string>,std::string>()(b);
+    SPDLOG_INFO(acid::LaxicalCast<std::set<std::string>,std::string>()(b));
 }
 
 void test5() {
@@ -59,9 +58,8 @@ void test5() {
     std::map<int,std::vector<std::string>> b;
     s >> b;
     for(auto item:b){
-        ACID_LOG_INFO(g_logger) << item.first << " " << item.second.size();//<< item.second;
         for(auto i:item.second) {
-            ACID_LOG_INFO(g_logger) << i << " " ;
+            SPDLOG_INFO("{} ", i);
         }
     }
 }
@@ -74,7 +72,7 @@ void test_map(T& a) {
     T b;
     s >> b;
     for(auto item:b){
-        ACID_LOG_INFO(g_logger) << item.first << " " << item.second;//<< item.second;
+        SPDLOG_INFO("{} {}", item.first, item.second);
     }
 }
 
@@ -105,7 +103,7 @@ void seq2seq() {
     std::list<std::string> b;
     s.reset();
     s >> b;
-    ACID_LOG_DEBUG(g_logger) << std::endl << acid::LaxicalCast<std::list<std::string>,std::string>()(b);
+    SPDLOG_INFO(acid::LaxicalCast<std::list<std::string>,std::string>()(b));
 }
 
 void map2map() {

@@ -19,12 +19,9 @@ struct RequestVoteArgs {
     int64_t lastLogIndex;  // 候选人的最后日志条目的索引值
     int64_t lastLogTerm;   // 候选人的最后日志条目的任期号
     std::string toString() const {
-        std::string str = "{ term = " + std::to_string(term) +
-                          ", candidateId = " + std::to_string(candidateId) +
-                          ", lastLogIndex = " + std::to_string(lastLogIndex) +
-                          ", lastLogTerm = " + std::to_string(lastLogTerm) +
-                          " }";
-        return str;
+        std::string str = fmt::format("Term: {}, CandidateId: {}, LastLogIndex: {}, LastLogTerm: {}",
+                                      term, candidateId, lastLogIndex, lastLogTerm);
+        return "{" + str + "}";
     }
     friend rpc::Serializer& operator<<(rpc::Serializer& s, const RequestVoteArgs& arg) {
         s << arg.term << arg.candidateId << arg.lastLogIndex << arg.lastLogTerm;
@@ -44,11 +41,8 @@ struct RequestVoteReply {
     int64_t leaderId;   // 当前任期的leader
     bool voteGranted;   // true表示候选人赢得了此张选票
     std::string toString() const {
-        std::string str = "{ term = " + std::to_string(term) +
-                          ", leaderId = " + std::to_string(leaderId) +
-                          ", voteGranted = " + std::to_string(voteGranted) +
-                          " }";
-        return str;
+        std::string str = fmt::format("Term: {}, LeaderId: {}, VoteGranted: {}", term, leaderId, voteGranted);
+        return "{" + str + "}";
     }
     friend rpc::Serializer& operator<<(rpc::Serializer& s, const RequestVoteReply& reply) {
         s << reply.term << reply.leaderId << reply.voteGranted;
@@ -101,13 +95,9 @@ struct AppendEntriesReply {
     int64_t conflictTerm = 0;
     int64_t conflictIndex = 0;
     std::string toString() const {
-        std::string str = "{ success = " + std::to_string(success) +
-                          ", term = " + std::to_string(term) +
-                          ", leaderId = " + std::to_string(leaderId) +
-                          ", conflictTerm = " + std::to_string(conflictTerm) +
-                          ", conflictIndex = " + std::to_string(conflictIndex) +
-                          " }";
-        return str;
+        std::string str = fmt::format("Success: {}, Term: {}, LeaderId: {}, ConflictTerm: {}, ConflictIndex: {}",
+                                      success, term, leaderId, conflictTerm, conflictIndex);
+        return "{" + str + "}";
     }
     friend rpc::Serializer& operator<<(rpc::Serializer& s, const AppendEntriesReply& reply) {
         s << reply.success << reply.term << reply.leaderId << reply.conflictTerm << reply.conflictIndex;
@@ -124,12 +114,9 @@ struct InstallSnapshotArgs {
     int64_t leaderId;           // 领导人的 ID，以便于跟随者重定向请求
     Snapshot snapshot;          // 快照
     std::string toString() const {
-        std::string str = "{ term = " + std::to_string(term) +
-                          ", leaderId = " + std::to_string(leaderId) +
-                          ", snapshot.metadata.index = " + std::to_string(snapshot.metadata.index) +
-                          ", snapshot.metadata.term = " + std::to_string(snapshot.metadata.term) +
-                          " }";
-        return str;
+        std::string str = fmt::format("Term: {}, LeaderId: {}, Snapshot.Metadata.Index: {}, Snapshot.Metadata.Term: {}",
+                                      term, leaderId, snapshot.metadata.index, snapshot.metadata.term);
+        return "{" + str + "}";
     }
     friend rpc::Serializer& operator<<(rpc::Serializer& s, const InstallSnapshotArgs& arg) {
         s << arg.term << arg.leaderId << arg.snapshot;
@@ -145,8 +132,8 @@ struct InstallSnapshotReply {
     int64_t term;           // 当前任期号，便于领导人更新自己
     int64_t leaderId;       // 当前任期领导人
     std::string toString() const {
-        std::string str = "{ term = " + std::to_string(term) + "leaderId = " + std::to_string(leaderId) + " }";
-        return str;
+        std::string str = fmt::format("Term: {}, LeaderId: {}", term, leaderId);
+        return "{" + str + "}";
     }
     friend rpc::Serializer& operator<<(rpc::Serializer& s, const InstallSnapshotReply& reply) {
         s << reply.term << reply.leaderId;

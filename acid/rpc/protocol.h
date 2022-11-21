@@ -5,7 +5,7 @@
 #ifndef ACID_PROTOCOL_H
 #define ACID_PROTOCOL_H
 #include <memory>
-#include "acid/byte_array.h"
+#include "acid/common/byte_array.h"
 namespace acid::rpc {
 /*
  * 私有通信协议
@@ -119,15 +119,9 @@ public:
     }
 
     std::string toString() {
-        std::stringstream ss;
-        ss << "[ magic=" << m_magic
-            << " version=" << m_version
-            << " type=" << m_type
-            << " id=" << m_sequence_id
-            << " length=" << m_content_length
-            << " content=" << m_content
-            << " ]";
-        return ss.str();
+        auto str = fmt::format(R"("magic": {}, "version": {},"type": {},"id": {},"length": {},"content": {})",
+                               m_magic, m_version, m_type, m_sequence_id, m_content_length, m_content);
+        return str;
     }
 private:
     uint8_t m_magic = MAGIC;

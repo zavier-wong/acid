@@ -3,6 +3,10 @@
 //
 
 #include "acid/rpc/rpc_server.h"
+
+using namespace acid;
+using namespace rpc;
+
 int add(int a,int b){
     return a + b;
 }
@@ -17,32 +21,34 @@ std::string CatString(std::vector<std::string> v){
     return res;
 }
 int main(int argc, char** argv) {
-    int port = 8080;
+    int port = 9000;
     if (argv[1]) {
         port = std::stoi(argv[1]);
     }
 
-    acid::Address::ptr address = acid::IPv4Address::Create("127.0.0.1",port);
-    acid::Address::ptr registry = acid::Address::LookupAny("127.0.0.1:8070");
-    acid::rpc::RpcServer::ptr server(new acid::rpc::RpcServer());
+    Address::ptr address = IPv4Address::Create("127.0.0.1",port);
+    Address::ptr registry = Address::LookupAny("127.0.0.1:8000");
+    RpcServer server;
     std::string str = "lambda";
-    //acid::Address::ptr address = acid::Address::LookupAny("127.0.0.1:8081");
-    server->registerMethod("add",add);
-    server->registerMethod("getStr",getStr);
-    server->registerMethod("CatString", CatString);
-    server->registerMethod("sleep", []{
+
+    server.registerMethod("add",add);
+    server.registerMethod("getStr",getStr);
+    server.registerMethod("CatString", CatString);
+    server.registerMethod("sleep", []{
         sleep(2);
     });
-    while (!server->bind(address)){
+    while (!server.bind(address)){
         sleep(1);
     }
-    server->bindRegistry(registry);
-    server->start();
-//    Go {
-//        LOG_DEBUG << "start publish";
-//        while (true) {
-//            server->publish("iloveyou","Yes, i love you too");
-//            sleep(1);
-//        }
-//    };
+    server.bindRegistry(registry);
+    go [&] {
+        int n = 0;
+        while (true) {
+            sleep(3);
+            SPDLOG_INFO("server publish data {}", n);
+            server.publish("data", n);
+            ++n;
+        }
+    };
+    server.start();
 }

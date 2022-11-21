@@ -8,9 +8,7 @@
 #include <memory>
 #include "acid/net/socket_stream.h"
 #include "acid/net/tcp_server.h"
-#include "acid/log.h"
-#include "acid/sync.h"
-#include "acid/traits.h"
+#include "acid/common/traits.h"
 #include "protocol.h"
 #include "rpc.h"
 #include "rpc_session.h"
@@ -21,14 +19,13 @@ namespace acid::rpc {
 class RpcServer : public TcpServer {
 public:
     using ptr = std::shared_ptr<RpcServer>;
-    using MutexType = CoMutex;
+    using MutexType = co::co_mutex;
 
-    RpcServer(IOManager* worker = IOManager::GetThis(),
-               IOManager* accept_worker = IOManager::GetThis());
+    RpcServer(co::Scheduler* worker = &co_sched, co::Scheduler* accept_worker = &co_sched);
     ~RpcServer();
     bool bind(Address::ptr address) override;
     bool bindRegistry(Address::ptr address);
-    bool start() override;
+    void start() override;
     /**
      * @brief 注册函数
      * @param[in] name 注册的函数名
@@ -53,7 +50,7 @@ public:
     template <typename T>
     void publish(const std::string& key, T data) {
         {
-            MutexType::Lock lock(m_sub_mtx);
+            std::unique_lock<co::co_mutex> lock(m_sub_mtx);
             if (m_subscribes.empty()) {
                 return;
             }
@@ -62,7 +59,7 @@ public:
         s << key << data;
         s.reset();
         Protocol::ptr pub = Protocol::Create(Protocol::MsgType::RPC_PUBLISH_REQUEST, s.toString(), 0);
-        MutexType::Lock lock(m_sub_mtx);
+        std::unique_lock<co::co_mutex> lock(m_sub_mtx);
         auto range = m_subscribes.equal_range(key);
         for (auto it = range.first; it != range.second; ++it) {
             auto conn = it->second.lock();
@@ -130,12 +127,6 @@ protected:
         serializer << val;
     }
     /**
-     * @brief 更新心跳定时器
-     * @param[in] heartTimer 心跳定时器
-     * @param[in] client 连接
-     */
-    void update(Timer::ptr& heartTimer, Socket::ptr client);
-    /**
      * @brief 处理客户端连接
      * @param[in] client 客户端套接字
      */
@@ -152,25 +143,26 @@ protected:
      * @brief 处理订阅请求
      */
     Protocol::ptr handleSubscribe(Protocol::ptr proto, RpcSession::ptr client);
+
 private:
     // 保存注册的函数
     std::map<std::string, std::function<void(Serializer, const std::string&)>> m_handlers;
     // 服务中心连接
     RpcSession::ptr m_registry;
     // 服务中心心跳定时器
-    Timer::ptr m_heartTimer;
+    co_timer_id m_heartTimer;
     // 开放服务端口
     uint32_t m_port;
     // 和客户端的心跳时间 默认 40s
-    uint64_t m_AliveTime;
+    uint64_t m_aliveTime;
     // 订阅的客户端
     std::unordered_multimap<std::string, std::weak_ptr<RpcSession>> m_subscribes;
     // 保护 m_subscribes
     MutexType m_sub_mtx;
     // 停止清理订阅协程
-    bool m_stop_clean = false;
+    std::atomic_bool m_stop_clean = false;
     // 等待清理协程停止
-    Channel<bool> m_clean_chan{1};
+    co::co_chan<bool> m_clean_chan;
 };
 
 }

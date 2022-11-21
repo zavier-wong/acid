@@ -4,12 +4,83 @@
 
 #ifndef ACID_PARSE_H
 #define ACID_PARSE_H
+#include <coroutine>
 #include <memory>
-#include "acid/coroutine.h"
 #include "http.h"
-//#include "io_manager.h"
-#include "acid/sync.h"
 namespace acid::http{
+
+template<class T>
+struct Task {
+    struct promise_type;
+    using handle = std::coroutine_handle<promise_type>;
+    struct promise_type {
+        Task get_return_object() {
+            return {std::coroutine_handle<promise_type>::from_promise(*this)};
+        }
+        std::suspend_always initial_suspend() {
+            return {};
+        }
+        std::suspend_always final_suspend() noexcept {
+            return {};
+        }
+        void return_value(T val) {
+            m_val = std::move(val);
+        }
+        std::suspend_always yield_value(T val) {
+            m_val = val;
+            return {};
+        }
+        void unhandled_exception() {
+            std::terminate();
+        }
+        T m_val;
+    };
+    Task() : m_handle(nullptr) {}
+    Task(handle h): m_handle(h){}
+    Task(const Task& rhs) = delete;
+    Task(Task&& rhs) noexcept
+            : m_handle(rhs.m_handle) {
+        rhs.m_handle = nullptr;
+    }
+
+    Task& operator=(const Task& rhs) = delete;
+    Task& operator=(Task&& rhs) noexcept {
+        if (std::addressof(rhs) != this)
+        {
+            if (m_handle)
+            {
+                m_handle.destroy();
+            }
+
+            m_handle = rhs.m_handle;
+            rhs.m_handle = nullptr;
+        }
+
+        return *this;
+    }
+    T get() {
+        return m_handle.promise().m_val;
+    }
+    void resume() {
+        m_handle.resume();
+    }
+    bool done() {
+        return !m_handle || m_handle.done();
+    }
+    void destroy() {
+        m_handle.destroy();
+        m_handle = nullptr;
+    }
+
+    ~Task() {
+        if (m_handle) {
+            m_handle.destroy();
+        }
+    }
+private:
+    handle m_handle = nullptr;
+};
+
 /**
  * @brief HTTP解析抽象类
  */

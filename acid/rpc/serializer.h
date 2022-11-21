@@ -5,6 +5,7 @@
 #ifndef ACID_SERIALIZER_H
 #define ACID_SERIALIZER_H
 
+#include <list>
 #include <algorithm>
 #include <cstdint>
 #include <map>
@@ -16,7 +17,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include "acid/byte_array.h"
+#include "acid/common/byte_array.h"
 #include "protocol.h"
 
 namespace acid::rpc {

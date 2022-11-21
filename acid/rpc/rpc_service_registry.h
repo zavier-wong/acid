@@ -9,7 +9,6 @@
 #include <vector>
 #include <list>
 #include <map>
-#include "acid/sync.h"
 #include "acid/net/tcp_server.h"
 #include "acid/net/socket_stream.h"
 #include "protocol.h"
@@ -24,19 +23,10 @@ namespace acid::rpc {
 class RpcServiceRegistry : public TcpServer {
 public:
     using ptr = std::shared_ptr<RpcServiceRegistry>;
-    using MutexType = CoMutex;
-    RpcServiceRegistry(IOManager* worker = IOManager::GetThis(),
-                        IOManager* accept_worker = IOManager::GetThis());
+    using MutexType = co::co_mutex;
+    RpcServiceRegistry(co::Scheduler* worker = &co_sched, co::Scheduler* accept_worker = &co_sched);
 
     ~RpcServiceRegistry();
-
-    /**
-     * @brief 设置 RPC 服务注册中心名称
-     * @param[in] name 名字
-     */
-    void setName(const std::string& name) override {
-        TcpServer::setName(name);
-    }
 
     /**
      * @brief 发布消息
@@ -46,7 +36,7 @@ public:
     template <typename T>
     void publish(const std::string& key, T data) {
         {
-            MutexType::Lock lock(m_sub_mtx);
+            std::unique_lock<co::co_mutex> lock(m_sub_mtx);
             if (m_subscribes.empty()) {
                 return;
             }
@@ -55,7 +45,7 @@ public:
         s << key << data;
         s.reset();
         Protocol::ptr pub = Protocol::Create(Protocol::MsgType::RPC_PUBLISH_REQUEST, s.toString(), 0);
-        MutexType::Lock lock(m_sub_mtx);
+        std::unique_lock<co::co_mutex> lock(m_sub_mtx);
         auto range = m_subscribes.equal_range(key);
         for (auto it = range.first; it != range.second; ++it) {
             auto conn = it->second.lock();
@@ -67,13 +57,6 @@ public:
     }
 
 protected:
-
-    /**
-     * @brief 更新心跳定时器
-     * @param[in] heartTimer 心跳定时器
-     * @param[in] client 连接
-     */
-    void update(Timer::ptr& heartTimer, Socket::ptr client);
 
     /**
      * @brief 处理端请求
@@ -125,7 +108,7 @@ private:
     std::map<std::string, std::vector<std::multimap<std::string, std::string>::iterator>> m_iters;
     MutexType m_mutex;
     // 允许心跳超时的时间 默认 40s
-    uint64_t m_AliveTime;
+    uint64_t m_aliveTime;
     // 订阅的客户端
     std::unordered_multimap<std::string, std::weak_ptr<RpcSession>> m_subscribes;
     // 保护 m_subscribes
@@ -133,7 +116,7 @@ private:
     // 停止清理订阅协程
     bool m_stop_clean = false;
     // 等待清理协程停止
-    Channel<bool> m_clean_chan{1};
+    co::co_chan<bool> m_clean_chan;
 };
 
 

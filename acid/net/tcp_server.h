@@ -4,23 +4,23 @@
 
 #ifndef ACID_TCP_SERVER_H
 #define ACID_TCP_SERVER_H
-#include <memory>
+
 #include <functional>
-#include "acid/io_manager.h"
+#include <libgo/libgo.h>
 #include "socket.h"
-#include "acid/noncopyable.h"
+
 namespace acid {
-// enable_shared_from_this，本对象只能在堆上创建
-class TcpServer : public std::enable_shared_from_this<TcpServer> , Noncopyable{
+
+class TcpServer {
 public:
-    using ptr = std::shared_ptr<TcpServer>;
-    TcpServer(IOManager* worker = IOManager::GetThis(), IOManager* accept_worker = IOManager::GetThis());
+    TcpServer(co::Scheduler* worker = &co_sched, co::Scheduler* accept_worker = &co_sched);
     virtual ~TcpServer();
 
     virtual bool bind(Address::ptr addr);
     virtual bool bind(const std::vector<Address::ptr>& addrs, std::vector<Address::ptr>& fail);
 
-    virtual bool start();
+    // 阻塞线程
+    virtual void start();
     virtual void stop();
 
     uint64_t getRecvTimeout() const { return m_recvTimeout;}
@@ -34,13 +34,17 @@ public:
 protected:
     virtual void startAccept(Socket::ptr sock);
     virtual void handleClient(Socket::ptr client);
+
+protected:
+    co::Scheduler* m_worker;
+    co::Scheduler* m_acceptWorker;
+    co_timer m_timer;
+private:
     /// 监听socket队列
     std::vector<Socket::ptr> m_listens;
-    IOManager* m_worker;
-    IOManager* m_acceptWorker;
     uint64_t m_recvTimeout;
     std::string m_name;
-    bool m_isStop;
+    std::atomic_bool m_isStop;
 };
 
 }

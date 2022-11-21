@@ -5,10 +5,10 @@
 #ifndef ACID_HTTP_CONNECTION_H
 #define ACID_HTTP_CONNECTION_H
 #include <memory>
+#include <libgo/libgo.h>
 #include "acid/net/socket_stream.h"
 #include "acid/net/uri.h"
 #include "http.h"
-#include "acid/sync.h"
 namespace acid::http {
 struct HttpResult {
     using ptr = std::shared_ptr<HttpResult>;
@@ -86,7 +86,7 @@ private:
 class HttpConnectionPool {
 public:
     using ptr = std::shared_ptr<HttpConnectionPool>;
-    using MutexType = CoMutex;
+    using MutexType = co::co_mutex;
     static HttpConnectionPool::ptr Create(const std::string& uri
             ,const std::string& vhost
             ,uint32_t max_size

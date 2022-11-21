@@ -6,10 +6,9 @@
 #define ACID_SOCKET_H
 #include <memory>
 #include "address.h"
-#include "acid/byte_array.h"
-#include "acid/noncopyable.h"
+#include "acid/common/byte_array.h"
 namespace acid{
-class Socket : public std::enable_shared_from_this<Socket> , Noncopyable{
+class Socket : public std::enable_shared_from_this<Socket> {
 public:
     using ptr = std::shared_ptr<Socket>;
     using weak_ptr = std::weak_ptr<Socket>;

@@ -6,7 +6,7 @@
 #define ACID_SOCKET_STREAM_H
 #include <memory>
 #include "socket.h"
-#include "acid/stream.h"
+#include "acid/common/stream.h"
 namespace acid {
 class SocketStream : public Stream {
 public:

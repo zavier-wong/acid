@@ -6,12 +6,9 @@
 #define ACID_RPC_CLIENT_H
 #include <memory>
 #include <functional>
-#include <future>
-#include "acid/io_manager.h"
 #include "acid/net/socket.h"
 #include "acid/net/socket_stream.h"
-#include "acid/sync.h"
-#include "acid/traits.h"
+#include "acid/common/traits.h"
 #include "protocol.h"
 #include "route_strategy.h"
 #include "rpc.h"
@@ -29,17 +26,25 @@ namespace acid::rpc {
 class RpcClient : public std::enable_shared_from_this<RpcClient> {
 public:
     using ptr = std::shared_ptr<RpcClient>;
-    using MutexType = CoMutex;
+    using MutexType = co::co_mutex;
 
     /**
      * @brief 构造函数
      * @param[in] auto_heartbeat 是否开启自动心跳包
      */
-    RpcClient(bool auto_heartbeat = true);
+    RpcClient(co::Scheduler* worker = &co_sched);
 
     ~RpcClient();
 
     void close();
+
+    /**
+     * @brief 设置心跳
+     * @param[in] is_auto 是否开启心跳包
+     */
+    void setHeartbeat(bool is_auto) {
+        m_auto_heartbeat = is_auto;
+    }
 
     /**
      * @brief 连接一个RPC服务器
@@ -97,7 +102,7 @@ public:
         using rt = typename res::row_type;
         static_assert(std::is_invocable_v<decltype(cb), Result<rt>>, "callback type not support");
         RpcClient::ptr self = shared_from_this();
-        go [cb = std::move(cb), name = std::move(name), tp = std::move(tp), self, this] {
+        go co_scheduler(m_worker) [cb = std::move(cb), name, tp = std::move(tp), self, this] {
             auto proxy = [&cb, &name, &tp, this]<std::size_t... Index>(std::index_sequence<Index...>){
                 cb(call<rt>(name, std::get<Index>(tp)...));
             };
@@ -109,10 +114,10 @@ public:
      * @brief 异步调用，返回一个 Channel
      */
     template<typename R,typename... Params>
-    Channel<Result<R>> async_call(const std::string& name, Params&& ... ps) {
-        Channel<Result<R>> chan(1);
+    co_chan<Result<R>> async_call(const std::string& name, Params&& ... ps) {
+        co_chan<Result<R>> chan;
         RpcClient::ptr self = shared_from_this();
-        go [self, chan, name, ps..., this] () mutable {
+        go co_scheduler(m_worker) [self, chan, name, ps..., this] () mutable {
             chan << call<R>(name, ps...);
             self = nullptr;
         };
@@ -127,10 +132,10 @@ public:
     template<typename Func>
     void subscribe(const std::string& key, Func func) {
         {
-            MutexType::Lock lock(m_sub_mtx);
+            std::unique_lock<co::co_mutex> lock(m_mutex);
             auto it = m_subHandle.find(key);
             if (it != m_subHandle.end()) {
-                ACID_ASSERT2(false, "duplicated subscribe");
+                SPDLOG_LOGGER_ERROR(GetLogInstance(), "duplicated subscribe");
                 return;
             }
 
@@ -183,12 +188,12 @@ private:
         }
 
         // 开启一个 Channel 接收调用结果
-        Channel<Protocol::ptr> recvChan(1);
+        co_chan<Protocol::ptr> recvChan;
         // 本次调用的序列号
         uint32_t id = 0;
-        std::map<uint32_t, Channel<Protocol::ptr>>::iterator it;
+        std::map<uint32_t, co::co_chan<Protocol::ptr>>::iterator it;
         {
-            MutexType::Lock lock(m_mutex);
+            std::unique_lock<co::co_mutex> lock(m_mutex);
             id = m_sequenceId;
             // 将请求序列号与接收 Channel 关联
             it = m_responseHandle.emplace(m_sequenceId, recvChan).first;
@@ -204,12 +209,16 @@ private:
 
         bool timeout = false;
         Protocol::ptr response;
-        if (!recvChan.waitFor(response, m_timeout)) {
-            timeout = true;
+        if (m_timeout == (uint64_t)-1) {
+            recvChan >> response;
+        } else {
+            if (!recvChan.TimedPop(response, std::chrono::milliseconds(m_timeout))) {
+                timeout = true;
+            }
         }
 
         {
-            MutexType::Lock lock(m_mutex);
+            std::unique_lock<co::co_mutex> lock(m_mutex);
             if (!m_isClose) {
                 // 删除序列号与 Channel 的映射
                 m_responseHandle.erase(it);
@@ -248,8 +257,8 @@ private:
 private:
     // 是否自动开启心跳包
     bool m_auto_heartbeat = true;
-    bool m_isClose = true;
-    bool m_isHeartClose = true;
+    std::atomic_bool m_isClose = true;
+    std::atomic_bool m_isHeartClose = true;
     // 超时时间
     uint64_t m_timeout = -1;
     // 服务器的连接
@@ -257,17 +266,20 @@ private:
     // 序列号
     uint32_t m_sequenceId = 0;
     // 序列号到对应调用者协程的 Channel 映射
-    std::map<uint32_t, Channel<Protocol::ptr>> m_responseHandle;
+    std::map<uint32_t, co::co_chan<Protocol::ptr>> m_responseHandle;
     // m_responseHandle 的 mutex
     MutexType m_mutex;
     // 消息发送通道
-    Channel<Protocol::ptr> m_chan;
+    co::co_chan<Protocol::ptr> m_chan;
     // service provider心跳定时器
-    Timer::ptr m_heartTimer;
+    co_timer_id m_heartTimer;
     // 处理订阅的消息回调函数
     std::map<std::string, std::function<void(Serializer)>> m_subHandle;
     // 保护m_subHandle
     MutexType m_sub_mtx;
+
+    co::Scheduler* m_worker;
+    co_timer m_timer;
 };
 
 

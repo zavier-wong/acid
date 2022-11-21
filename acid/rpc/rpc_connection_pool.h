@@ -4,8 +4,7 @@
 
 #ifndef ACID_RPC_CONNECTION_POOL_H
 #define ACID_RPC_CONNECTION_POOL_H
-#include "acid/traits.h"
-#include "acid/sync.h"
+#include "acid/common/traits.h"
 #include "route_strategy.h"
 #include "rpc_client.h"
 #include "serializer.h"
@@ -18,9 +17,9 @@ namespace acid::rpc {
 class RpcConnectionPool : public std::enable_shared_from_this<RpcConnectionPool> {
 public:
     using ptr = std::shared_ptr<RpcConnectionPool>;
-    using MutexType = CoMutex;
+    using MutexType = co::co_mutex;
 
-    RpcConnectionPool(uint64_t timeout_ms = -1);
+    RpcConnectionPool(uint64_t timeout_ms = -1, co::Scheduler* worker = &co_sched);
     ~RpcConnectionPool();
     /**
      * @brief 连接 RPC 服务中心
@@ -45,7 +44,7 @@ public:
         using rt = typename res::row_type;
         static_assert(std::is_invocable_v<decltype(cb), Result<rt>>, "callback type not support");
         RpcConnectionPool::ptr self = shared_from_this();
-        go [cb = std::move(cb), name = std::move(name), tp = std::move(tp), self, this] {
+        go co_scheduler(m_worker) [cb = std::move(cb), name, tp = std::move(tp), self, this] {
             auto proxy = [&cb, &name, &tp, this]<std::size_t... Index>(std::index_sequence<Index...>){
                 cb(call<rt>(name, std::get<Index>(tp)...));
             };
@@ -60,12 +59,12 @@ public:
      * @return 返回 Channel
      */
     template<typename R,typename... Params>
-    Channel<Result<R>> async_call(const std::string& name, Params&& ... ps) {
-        Channel<Result<R>> chan(1);
+    co::co_chan<Result<R>> async_call(const std::string& name, Params&& ... ps) {
+        co::co_chan<Result<R>> chan(1);
         RpcConnectionPool::ptr self = shared_from_this();
-        go [chan, name, ps..., self, this] () mutable {
+        go co_scheduler(m_worker) [chan, name, ps..., self, this] () mutable {
             chan << call<R>(name, ps...);
-            self = nullptr;
+            (void)self;
         };
         return chan;
     }
@@ -77,7 +76,7 @@ public:
      */
     template<typename R, typename... Params>
     Result<R> call(const std::string& name, Params... ps) {
-        MutexType::Lock lock(m_connMutex);
+        std::unique_lock<co::co_mutex> lock(m_connMutex);
         // 从连接池里取出服务连接
         auto conn = m_conns.find(name);
         Result<R> result;
@@ -144,10 +143,11 @@ public:
     template<typename Func>
     void subscribe(const std::string& key, Func func) {
         {
-            MutexType::Lock lock(m_sub_mtx);
+            std::unique_lock<co::co_mutex> lock(m_sub_mtx);
             auto it = m_subHandle.find(key);
             if (it != m_subHandle.end()) {
-                ACID_ASSERT2(false, "duplicated subscribe");
+                SPDLOG_LOGGER_ERROR(GetLogInstance(), "duplicated subscribe");
+                return;
             }
 
             m_subHandle.emplace(key, std::move(func));
@@ -185,8 +185,8 @@ private:
      */
     void handlePublish(Protocol::ptr proto);
 private:
-    bool m_isClose = true;
-    bool m_isHeartClose = true;
+    std::atomic_bool m_isClose = true;
+    std::atomic_bool m_isHeartClose = true;
     uint64_t m_timeout;
     // 保护 m_conns
     MutexType m_connMutex;
@@ -197,17 +197,20 @@ private:
     // 服务中心连接
     RpcSession::ptr m_registry;
     // 服务中心心跳定时器
-    Timer::ptr m_heartTimer;
+    co_timer_id m_heartTimer;
     // 注册中心消息发送通道
-    Channel<Protocol::ptr> m_chan;
+    co::co_chan<Protocol::ptr> m_chan;
     // 服务名到对应调用者协程的 Channel 映射
-    std::map<std::string, Channel<Protocol::ptr>> m_discover_handle;
+    std::map<std::string, co::co_chan<Protocol::ptr>> m_discover_handle;
     // m_discover_handle 的 mutex
     MutexType m_discover_mutex;
     // 处理订阅的消息回调函数
     std::map<std::string, std::function<void(Serializer)>> m_subHandle;
     // 保护m_subHandle
     MutexType m_sub_mtx;
+
+    co::Scheduler* m_worker;
+    co_timer m_timer;
 };
 
 }

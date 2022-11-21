@@ -5,11 +5,11 @@
 #ifndef ACID_ACID_H
 #define ACID_ACID_H
 
-#include "byte_array.h"
-#include "config.h"
-#include "fiber.h"
-#include "fd_manager.h"
-#include "hook.h"
+#include "acid/common/byte_array.h"
+#include "acid/common/config.h"
+#include "acid/common/stream.h"
+#include "acid/common/time_measure.h"
+#include "acid/common/util.h"
 
 #include "http/servlets/file_servlet.h"
 #include "http/http.h"
@@ -19,24 +19,20 @@
 #include "http/parse.h"
 #include "http/servlet.h"
 
-#include "io_manager.h"
-#include "log.h"
-#include "macro.h"
-
 #include "net/address.h"
 #include "net/socket.h"
 #include "net/socket_stream.h"
 #include "net/tcp_server.h"
 #include "net/uri.h"
 
-#include "noncopyable.h"
-#include "scheduler.h"
-#include "singleton.h"
-#include "sync.h"
-#include "thread.h"
-#include "time_measure.h"
-#include "util.h"
-
-
+#include "rpc/protocol.h"
+#include "rpc/route_strategy.h"
+#include "rpc/rpc.h"
+#include "rpc/rpc_client.h"
+#include "rpc/rpc_connection_pool.h"
+#include "rpc/rpc_server.h"
+#include "rpc/rpc_service_registry.h"
+#include "rpc/rpc_session.h"
+#include "rpc/serializer.h"
 
 #endif //ACID_ACID_H
