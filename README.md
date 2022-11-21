@@ -13,6 +13,7 @@ sudo apt install gcc-11 g++-11
 2.构建项目 / Build
 ```shell
 git clone --recursive https://github.com/zavier-wong/acid
+cd acid
 sudo bash build.sh
 ```
 现在你可以在 acid/lib 里面看见编译后的静态库 libacid.a
