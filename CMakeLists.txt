@@ -65,7 +65,7 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/acid/common SRC_LIST)
 aux_source_directory(${PROJECT_SOURCE_DIR}/acid/http SRC_LIST)
 aux_source_directory(${PROJECT_SOURCE_DIR}/acid/http/servlets SRC_LIST)
 aux_source_directory(${PROJECT_SOURCE_DIR}/acid/net SRC_LIST)
-aux_source_directory(${PROJECT_SOURCE_DIR}/acid/raft SRC_LIST)
+#aux_source_directory(${PROJECT_SOURCE_DIR}/acid/raft SRC_LIST)
 aux_source_directory(${PROJECT_SOURCE_DIR}/acid/rpc SRC_LIST)
 
 # 编译的库在 acid/lib 下生成
