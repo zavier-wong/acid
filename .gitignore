@@ -1,5 +1,8 @@
-/cmake-build-debug/
-/cmake-build-release/
+cmake-build-debug/
+cmake-build-release/
+build/
+third_party/
+.idea/
 
 # Prerequisites
 *.d
