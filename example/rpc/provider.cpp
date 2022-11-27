@@ -23,7 +23,7 @@ int main() {
     server.registerMethod("echo", [](std::string str){
         return str;
     });
-    server.registerMethod("revers", [](std::vector<std::string> vec) -> std::vector<std::string>{
+    server.registerMethod("reverse", [](std::vector<std::string> vec) -> std::vector<std::string>{
         std::reverse(vec.begin(), vec.end());
         return vec;
     });
