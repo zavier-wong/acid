@@ -33,8 +33,9 @@ int main(){
     }
 
     std::jthread t([&server]{
-        // 3秒后停止server
-        sleep(3);
+        // 10秒后停止server
+        sleep(10);
+        SPDLOG_WARN("server stop after 10s");
         server.stop();
     });
     server.start();
