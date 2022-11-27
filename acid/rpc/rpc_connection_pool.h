@@ -197,7 +197,7 @@ private:
     // 服务中心连接
     RpcSession::ptr m_registry;
     // 服务中心心跳定时器
-    co_timer_id m_heartTimer;
+    CycleTimerTocken m_heartTimer;
     // 注册中心消息发送通道
     co::co_chan<Protocol::ptr> m_chan;
     // 服务名到对应调用者协程的 Channel 映射
@@ -210,7 +210,6 @@ private:
     MutexType m_sub_mtx;
 
     co::Scheduler* m_worker;
-    co_timer m_timer;
 };
 
 }

@@ -272,7 +272,7 @@ private:
     // 消息发送通道
     co::co_chan<Protocol::ptr> m_chan;
     // service provider心跳定时器
-    co_timer_id m_heartTimer;
+    CycleTimerTocken m_heartTimer;
     // 处理订阅的消息回调函数
     std::map<std::string, std::function<void(Serializer)>> m_subHandle;
     // 保护m_subHandle

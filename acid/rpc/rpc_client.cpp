@@ -26,8 +26,7 @@ static _RpcClientIniter s_initer;
 
 RpcClient::RpcClient(co::Scheduler* worker)
     : m_chan(s_channel_capacity)
-    , m_worker(worker)
-    , m_timer(m_worker) {
+    , m_worker(worker) {
 }
 
 RpcClient::~RpcClient() {
@@ -52,7 +51,7 @@ void RpcClient::close() {
     m_responseHandle.clear();
 
     if (m_heartTimer) {
-        m_heartTimer.StopTimer();
+        m_heartTimer.stop();
     }
 
     if (m_session && m_session->isConnected()) {
@@ -85,21 +84,19 @@ bool RpcClient::connect(Address::ptr address){
     };
 
     if (m_auto_heartbeat) {
-        std::function<void()> fun;
-        fun = [fun, this] {
+        m_heartTimer = CycleTimer(30'000, [this] {
             SPDLOG_LOGGER_DEBUG(g_logger, "heart beat");
             if (m_isHeartClose) {
                 SPDLOG_LOGGER_DEBUG(g_logger, "Server closed");
                 close();
+                return;
             }
             // 创建心跳包
             Protocol::ptr proto = Protocol::Create(Protocol::MsgType::HEARTBEAT_PACKET, "");
             // 向 send 协程的 Channel 发送消息
             m_chan << proto;
             m_isHeartClose = true;
-            m_heartTimer = m_timer.ExpireAt(std::chrono::seconds(30), fun);
-        };
-        m_heartTimer = m_timer.ExpireAt(std::chrono::seconds(30), fun);
+        }, m_worker);
     }
 
     return true;

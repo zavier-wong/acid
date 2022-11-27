@@ -150,7 +150,7 @@ private:
     // 服务中心连接
     RpcSession::ptr m_registry;
     // 服务中心心跳定时器
-    co_timer_id m_heartTimer;
+    CycleTimerTocken m_heartTimer;
     // 开放服务端口
     uint32_t m_port;
     // 和客户端的心跳时间 默认 40s

@@ -59,7 +59,7 @@ RpcServiceRegistry::~RpcServiceRegistry() {
 }
 
 void RpcServiceRegistry::handleClient(Socket::ptr client) {
-    SPDLOG_LOGGER_WARN(g_logger, "handleClient: {}", client->toString());
+    SPDLOG_LOGGER_DEBUG(g_logger, "handleClient: {}", client->toString());
     RpcSession::ptr session = std::make_shared<RpcSession>(client);
     auto on_close = [client] {
         SPDLOG_LOGGER_DEBUG(g_logger, "client: {} closed", client->toString());

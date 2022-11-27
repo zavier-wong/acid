@@ -29,8 +29,7 @@ RpcConnectionPool::RpcConnectionPool(uint64_t timeout_ms, co::Scheduler* worker)
         : m_isClose(false)
         , m_timeout(timeout_ms)
         , m_chan(s_channel_capacity)
-        , m_worker(worker)
-        , m_timer(worker){
+        , m_worker(worker) {
 
 }
 
@@ -48,7 +47,7 @@ void RpcConnectionPool::close() {
     m_chan.close();
 
     if (m_heartTimer) {
-        m_heartTimer.StopTimer();
+        m_heartTimer.stop();
     }
 
     m_discover_handle.clear();
@@ -84,23 +83,19 @@ bool RpcConnectionPool::connect(Address::ptr address){
     };
 
     // 服务中心心跳定时器 30s
-    std::function<void()> fun;
-    fun = [fun, this] {
+    m_heartTimer = CycleTimer(30'000, [this] {
         SPDLOG_LOGGER_DEBUG(g_logger, "heart beat");
         if (m_isHeartClose) {
             SPDLOG_LOGGER_DEBUG(g_logger, "registry closed");
-            //放弃注册中心
-            m_heartTimer.StopTimer();
+            m_heartTimer.stop();
+            return;
         }
         // 创建心跳包
         Protocol::ptr proto = Protocol::Create(Protocol::MsgType::HEARTBEAT_PACKET, "");
         // 向 send 协程的 Channel 发送消息
         m_chan << proto;
         m_isHeartClose = true;
-        m_heartTimer = m_timer.ExpireAt(std::chrono::seconds(30), fun);
-    };
-    m_heartTimer = m_timer.ExpireAt(std::chrono::seconds(30), fun);
-
+    }, m_worker);
     return true;
 }
 

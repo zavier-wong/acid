@@ -68,8 +68,7 @@ void TcpServer::start() {
         };
     }
     if (m_acceptWorker != m_worker) {
-        std::thread t([this]{ this->m_worker->Start(0); });
-        t.detach();
+        m_worker->goStart(0);
     }
     m_acceptWorker->Start(0);
 }
@@ -105,7 +104,7 @@ void TcpServer::startAccept(Socket::ptr sock) {
 }
 
 void TcpServer::handleClient(Socket::ptr client) {
-    g_logger->info("handleClient: {}", client->toString());
+    SPDLOG_LOGGER_INFO(g_logger,"handleClient: {}", client->toString());
 }
 
 }

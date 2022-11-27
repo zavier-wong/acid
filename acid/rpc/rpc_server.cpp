@@ -86,24 +86,22 @@ void RpcServer::start() {
         for(auto& item: m_handlers) {
             registerService(item.first);
         }
-        // 服务中心心跳定时器 30s
+
         m_registry->getSocket()->setRecvTimeout(30'000);
 
-        std::function<void()> fun;
-        fun = [fun, this] {
+        // 服务中心心跳定时器 30s
+        m_heartTimer = CycleTimer(30'000, [this] {
             SPDLOG_LOGGER_DEBUG(g_logger, "heart beat");
             Protocol::ptr proto = Protocol::Create(Protocol::MsgType::HEARTBEAT_PACKET, "");
             m_registry->sendProtocol(proto);
             Protocol::ptr response = m_registry->recvProtocol();
-
             if (!response) {
                 SPDLOG_LOGGER_WARN(g_logger, "Registry close");
                 //放弃注册中心，独自提供服务
-                m_heartTimer.StopTimer();
+                m_heartTimer.stop();
+                return;
             }
-            m_heartTimer = m_timer.ExpireAt(std::chrono::seconds(30), fun);
-        };
-        m_heartTimer = m_timer.ExpireAt(std::chrono::seconds(30), fun);
+        }, m_worker);
     }
 
     // 开启协程定时清理订阅列表
