@@ -3,6 +3,7 @@
 //
 #include <sstream>
 #include <execinfo.h>
+#include <libgo/libgo.h>
 #include "util.h"
 namespace acid{
 static std::shared_ptr<spdlog::logger> GetLogInstanceHelper() {
@@ -58,6 +59,28 @@ uint64_t GetCurrentUS(){
     struct timeval tm;
     gettimeofday(&tm,0);
     return tm.tv_sec * 1000ul * 1000ul + tm.tv_usec;
+}
+
+CycleTimerTocken CycleTimer(unsigned interval_ms, std::function<void()> cb, co::Scheduler* worker, int times) {
+    if (!worker) {
+        auto sc = co::Processer::GetCurrentScheduler();
+        if (sc) {
+            worker = sc;
+        } else {
+            worker = &co_sched;
+        }
+    }
+
+    CycleTimerTocken tocken(std::make_shared<bool>(false));
+    go co_scheduler(worker) [tocken, interval_ms, cb, times]() mutable {
+        while (times) {
+            co_sleep(interval_ms);
+            if (tocken.isCancel()) return;
+            cb();
+            if (times > 0) --times;
+        }
+    };
+    return tocken;
 }
 
 }
