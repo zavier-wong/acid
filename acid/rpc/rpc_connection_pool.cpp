@@ -25,12 +25,10 @@ struct _RpcConnectionPoolIniter{
 
 static _RpcConnectionPoolIniter s_initer;
 
-RpcConnectionPool::RpcConnectionPool(uint64_t timeout_ms, co::Scheduler* worker)
-        : m_isClose(false)
+RpcConnectionPool::RpcConnectionPool(uint64_t timeout_ms)
+        : m_isClose(true)
         , m_timeout(timeout_ms)
-        , m_chan(s_channel_capacity)
-        , m_worker(worker) {
-
+        , m_chan(s_channel_capacity) {
 }
 
 RpcConnectionPool::~RpcConnectionPool() {
@@ -46,10 +44,7 @@ void RpcConnectionPool::close() {
     m_isClose = true;
     m_chan.close();
 
-    if (m_heartTimer) {
-        m_heartTimer.stop();
-    }
-
+    m_heartTimer.stop();
     m_discover_handle.clear();
 
     if (m_registry->isConnected()) {
@@ -59,6 +54,9 @@ void RpcConnectionPool::close() {
 }
 
 bool RpcConnectionPool::connect(Address::ptr address){
+    if (!m_isClose) {
+        close();
+    }
     Socket::ptr sock = Socket::CreateTCP(address);
     if (!sock) {
         return false;
@@ -72,12 +70,12 @@ bool RpcConnectionPool::connect(Address::ptr address){
 
     SPDLOG_LOGGER_DEBUG(g_logger, "connect to register {}", m_registry->getSocket()->toString());
 
-    go co_scheduler(m_worker) [this] {
+    go [this] {
         // 开启 recv 协程
         handleRecv();
     };
 
-    go co_scheduler(m_worker) [this] {
+    go [this] {
         // 开启 send 协程
         handleSend();
     };
@@ -95,7 +93,7 @@ bool RpcConnectionPool::connect(Address::ptr address){
         // 向 send 协程的 Channel 发送消息
         m_chan << proto;
         m_isHeartClose = true;
-    }, m_worker);
+    });
     return true;
 }
 

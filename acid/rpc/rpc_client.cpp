@@ -24,9 +24,8 @@ struct _RpcClientIniter{
 
 static _RpcClientIniter s_initer;
 
-RpcClient::RpcClient(co::Scheduler* worker)
-    : m_chan(s_channel_capacity)
-    , m_worker(worker) {
+RpcClient::RpcClient()
+    : m_chan(s_channel_capacity) {
 }
 
 RpcClient::~RpcClient() {
@@ -47,13 +46,9 @@ void RpcClient::close() {
     for (auto& i: m_responseHandle) {
         i.second << nullptr;
     }
-
     m_responseHandle.clear();
 
-    if (m_heartTimer) {
-        m_heartTimer.stop();
-    }
-
+    m_heartTimer.stop();
     if (m_session && m_session->isConnected()) {
         m_session->close();
     }
@@ -74,11 +69,11 @@ bool RpcClient::connect(Address::ptr address){
     m_isClose = false;
     m_session = std::make_shared<RpcSession>(sock);
     m_chan = co::co_chan<Protocol::ptr>(s_channel_capacity);
-    go co_scheduler(m_worker) [this] {
+    go [this] {
         // 开启 recv 协程
         handleRecv();
     };
-    go co_scheduler(m_worker) [this] {
+    go [this] {
         // 开启 send 协程
         handleSend();
     };
@@ -96,7 +91,7 @@ bool RpcClient::connect(Address::ptr address){
             // 向 send 协程的 Channel 发送消息
             m_chan << proto;
             m_isHeartClose = true;
-        }, m_worker);
+        });
     }
 
     return true;

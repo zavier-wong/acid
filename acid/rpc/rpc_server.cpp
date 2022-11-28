@@ -36,17 +36,12 @@ struct _RpcServerIniter{
 
 static _RpcServerIniter s_initer;
 
-RpcServer::RpcServer(co::Scheduler* worker, co::Scheduler* accept_worker)
-        : TcpServer(worker, accept_worker)
-        , m_aliveTime(s_heartbeat_timeout) {
+RpcServer::RpcServer()
+        : m_aliveTime(s_heartbeat_timeout) {
 }
 
 RpcServer::~RpcServer() {
-    {
-        std::unique_lock<co::co_mutex> lock(m_sub_mtx);
-        m_stop_clean = true;
-    }
-    m_clean_chan >> nullptr;
+    stop();
 }
 
 bool RpcServer::bind(Address::ptr address) {
@@ -82,13 +77,17 @@ bool RpcServer::bindRegistry(Address::ptr address) {
 }
 
 void RpcServer::start() {
+    if (!isStop()) {
+        return;
+    }
+    m_clean_chan = co::co_chan<bool>();
+    m_stop_clean = false;
+
     if (m_registry) {
         for(auto& item: m_handlers) {
             registerService(item.first);
         }
-
         m_registry->getSocket()->setRecvTimeout(30'000);
-
         // 服务中心心跳定时器 30s
         m_heartTimer = CycleTimer(30'000, [this] {
             SPDLOG_LOGGER_DEBUG(g_logger, "heart beat");
@@ -101,11 +100,11 @@ void RpcServer::start() {
                 m_heartTimer.stop();
                 return;
             }
-        }, m_worker);
+        });
     }
 
     // 开启协程定时清理订阅列表
-    go co_scheduler(m_worker) [this] {
+    go [this] {
         while (!m_stop_clean) {
             sleep(5);
             std::unique_lock<co::co_mutex> lock(m_sub_mtx);
@@ -121,8 +120,19 @@ void RpcServer::start() {
         m_clean_chan << true;
     };
 
-    return TcpServer::start();
+    TcpServer::start();
 }
+
+void RpcServer::stop() {
+    if (isStop()) {
+        return;
+    }
+    m_heartTimer.stop();
+    m_stop_clean = true;
+    m_clean_chan >> nullptr;
+    TcpServer::stop();
+}
+
 
 void RpcServer::handleClient(Socket::ptr client) {
     SPDLOG_LOGGER_DEBUG(g_logger, "handleClient: {}", client->toString());
@@ -145,7 +155,7 @@ void RpcServer::handleClient(Socket::ptr client) {
         // 更新定时器
         heartTimer.StopTimer();
         heartTimer = m_timer.ExpireAt(std::chrono::milliseconds(m_aliveTime), on_close);
-        go co_scheduler(m_worker) [request, session, wait_queue, this] {
+        go [request, session, wait_queue, this] {
             wait_queue >> nullptr;
             Protocol::ptr response;
             Protocol::MsgType type = request->getMsgType();

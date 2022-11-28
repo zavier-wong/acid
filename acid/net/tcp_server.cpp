@@ -11,14 +11,11 @@ static ConfigVar<uint64_t>::ptr g_tcp_server_recv_timeout =
         Config::Lookup<uint64_t>("tcp_server.recv_timeout",
                                  (uint64_t)(60 * 1000 * 2), "tcp server recv timeout");
 
-TcpServer::TcpServer(co::Scheduler* worker, co::Scheduler* accept_worker)
-    : m_worker(worker)
-    , m_acceptWorker(accept_worker)
-    , m_timer(worker)
+TcpServer::TcpServer()
+    : m_timer()
     , m_recvTimeout(g_tcp_server_recv_timeout->getValue())
     , m_name("acid/1.0.0")
-    , m_isStop(true) {
-
+    , m_stop(true) {
 }
 
 TcpServer::~TcpServer() {
@@ -61,32 +58,26 @@ void TcpServer::start() {
     if(!isStop()) {
         return;
     }
-    m_isStop = false;
+    m_stop = false;
+    m_stopCh = co::co_chan<bool>();
     for(auto& sock : m_listens) {
-        go co_scheduler(m_acceptWorker) [sock, this] {
+        go [sock, this] {
             this->startAccept(sock);
         };
     }
-    if (m_acceptWorker != m_worker) {
-        m_worker->goStart(0);
-    }
-    m_acceptWorker->Start(0);
+    // 阻塞等待
+    m_stopCh >> nullptr;
 }
 
 void TcpServer::stop() {
-    if(isStop()){
+    if(isStop()) {
         return;
     }
-    m_isStop = true;
-    if (m_acceptWorker != m_worker) {
-        m_worker->Stop();
+    m_stop = true;
+    for(auto& sock : m_listens) {
+        sock->close();
     }
-    go co_scheduler(m_acceptWorker) [this] {
-        for(auto& sock : m_listens) {
-            sock->close();
-        }
-    };
-    m_acceptWorker->Stop();
+    m_stopCh.Close();
 }
 
 void TcpServer::startAccept(Socket::ptr sock) {
@@ -94,10 +85,13 @@ void TcpServer::startAccept(Socket::ptr sock) {
         Socket::ptr client = sock->accept();
         if(client) {
             client->setRecvTimeout(m_recvTimeout);
-            go co_scheduler(m_worker) [client, this] {
+            go [client, this] {
                 this->handleClient(client);
             };
         } else {
+            if (!sock->isConnected()) {
+                return;
+            }
             SPDLOG_LOGGER_ERROR(g_logger, "accept fail, errno={} errstr={}", errno, strerror(errno));
         }
     }

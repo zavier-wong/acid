@@ -19,7 +19,7 @@ public:
     using ptr = std::shared_ptr<RpcConnectionPool>;
     using MutexType = co::co_mutex;
 
-    RpcConnectionPool(uint64_t timeout_ms = -1, co::Scheduler* worker = &co_sched);
+    RpcConnectionPool(uint64_t timeout_ms = -1);
     ~RpcConnectionPool();
     /**
      * @brief 连接 RPC 服务中心
@@ -44,7 +44,7 @@ public:
         using rt = typename res::row_type;
         static_assert(std::is_invocable_v<decltype(cb), Result<rt>>, "callback type not support");
         RpcConnectionPool::ptr self = shared_from_this();
-        go co_scheduler(m_worker) [cb = std::move(cb), name, tp = std::move(tp), self, this] {
+        go [cb = std::move(cb), name, tp = std::move(tp), self, this] {
             auto proxy = [&cb, &name, &tp, this]<std::size_t... Index>(std::index_sequence<Index...>){
                 cb(call<rt>(name, std::get<Index>(tp)...));
             };
@@ -62,7 +62,7 @@ public:
     co::co_chan<Result<R>> async_call(const std::string& name, Params&& ... ps) {
         co::co_chan<Result<R>> chan(1);
         RpcConnectionPool::ptr self = shared_from_this();
-        go co_scheduler(m_worker) [chan, name, ps..., self, this] () mutable {
+        go [chan, name, ps..., self, this] () mutable {
             chan << call<R>(name, ps...);
             (void)self;
         };
@@ -208,8 +208,6 @@ private:
     std::map<std::string, std::function<void(Serializer)>> m_subHandle;
     // 保护m_subHandle
     MutexType m_sub_mtx;
-
-    co::Scheduler* m_worker;
 };
 
 }

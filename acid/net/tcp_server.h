@@ -13,7 +13,7 @@ namespace acid {
 
 class TcpServer {
 public:
-    TcpServer(co::Scheduler* worker = &co_sched, co::Scheduler* accept_worker = &co_sched);
+    TcpServer();
     virtual ~TcpServer();
 
     virtual bool bind(Address::ptr addr);
@@ -29,22 +29,20 @@ public:
     std::string getName() const { return m_name;}
     virtual void setName(const std::string& name) { m_name = name;}
 
-    bool isStop() const { return m_isStop;}
+    bool isStop() const { return m_stop;}
 
 protected:
     virtual void startAccept(Socket::ptr sock);
     virtual void handleClient(Socket::ptr client);
-
 protected:
-    co::Scheduler* m_worker;
-    co::Scheduler* m_acceptWorker;
     co_timer m_timer;
 private:
     /// 监听socket队列
     std::vector<Socket::ptr> m_listens;
     uint64_t m_recvTimeout;
     std::string m_name;
-    std::atomic_bool m_isStop;
+    std::atomic_bool m_stop;
+    co::co_chan<bool> m_stopCh;
 };
 
 }

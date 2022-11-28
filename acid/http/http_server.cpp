@@ -10,9 +10,8 @@
 namespace acid::http {
 static auto g_logger = GetLogInstance();
 
-HttpServer::HttpServer(bool keepalive, co::Scheduler* worker, co::Scheduler* accept_worker)
-    : TcpServer(worker, accept_worker)
-    , m_isKeepalive(keepalive){
+HttpServer::HttpServer(bool keepalive)
+    : m_isKeepalive(keepalive){
     m_dispatch.reset(new ServletDispatch);
 
 }

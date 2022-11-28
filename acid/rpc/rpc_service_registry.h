@@ -24,9 +24,12 @@ class RpcServiceRegistry : public TcpServer {
 public:
     using ptr = std::shared_ptr<RpcServiceRegistry>;
     using MutexType = co::co_mutex;
-    RpcServiceRegistry(co::Scheduler* worker = &co_sched, co::Scheduler* accept_worker = &co_sched);
+    RpcServiceRegistry();
 
     ~RpcServiceRegistry();
+
+    void start() override;
+    void stop() override;
 
     /**
      * @brief 发布消息
@@ -107,14 +110,14 @@ private:
     // 维护服务地址到迭代器的映射
     std::map<std::string, std::vector<std::multimap<std::string, std::string>::iterator>> m_iters;
     MutexType m_mutex;
-    // 允许心跳超时的时间 默认 40s
+    // 允许心跳超时的时间
     uint64_t m_aliveTime;
     // 订阅的客户端
     std::unordered_multimap<std::string, std::weak_ptr<RpcSession>> m_subscribes;
     // 保护 m_subscribes
     MutexType m_sub_mtx;
     // 停止清理订阅协程
-    bool m_stop_clean = false;
+    std::atomic_bool m_stop_clean = false;
     // 等待清理协程停止
     co::co_chan<bool> m_clean_chan;
 };

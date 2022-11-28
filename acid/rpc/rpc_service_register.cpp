@@ -27,13 +27,22 @@ struct _RpcRegistryIniter{
 
 static _RpcRegistryIniter s_initer;
 
-RpcServiceRegistry::RpcServiceRegistry(co::Scheduler* worker, co::Scheduler* accept_worker)
-        : TcpServer(worker, accept_worker)
-        , m_aliveTime(s_heartbeat_timeout) {
+RpcServiceRegistry::RpcServiceRegistry() : m_aliveTime(s_heartbeat_timeout) {
     setName("RpcServiceRegistry");
+}
 
+RpcServiceRegistry::~RpcServiceRegistry() {
+    stop();
+}
+
+void RpcServiceRegistry::start() {
+    if (!isStop()) {
+        return;
+    }
+    m_clean_chan = co::co_chan<bool>();
+    m_stop_clean = false;
     // 开启协程定时清理订阅列表
-    go co_scheduler(m_worker) [this] {
+    go [this] {
         while (!m_stop_clean) {
             sleep(5);
             std::unique_lock<co::co_mutex> lock(m_sub_mtx);
@@ -46,16 +55,18 @@ RpcServiceRegistry::RpcServiceRegistry(co::Scheduler* worker, co::Scheduler* acc
                 }
             }
         }
-        m_clean_chan << true;
+        m_clean_chan.Close();
     };
+    TcpServer::start();
 }
 
-RpcServiceRegistry::~RpcServiceRegistry() {
-    {
-        std::unique_lock<co::co_mutex> lock(m_sub_mtx);
-        m_stop_clean = true;
+void RpcServiceRegistry::stop() {
+    if (isStop()) {
+        return;
     }
+    m_stop_clean = true;
     m_clean_chan >> nullptr;
+    TcpServer::stop();
 }
 
 void RpcServiceRegistry::handleClient(Socket::ptr client) {

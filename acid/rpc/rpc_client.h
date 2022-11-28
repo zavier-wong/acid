@@ -30,9 +30,9 @@ public:
 
     /**
      * @brief 构造函数
-     * @param[in] auto_heartbeat 是否开启自动心跳包
+     * @param[in] worker 调度器
      */
-    RpcClient(co::Scheduler* worker = &co_sched);
+    RpcClient();
 
     ~RpcClient();
 
@@ -102,7 +102,7 @@ public:
         using rt = typename res::row_type;
         static_assert(std::is_invocable_v<decltype(cb), Result<rt>>, "callback type not support");
         RpcClient::ptr self = shared_from_this();
-        go co_scheduler(m_worker) [cb = std::move(cb), name, tp = std::move(tp), self, this] {
+        go [cb = std::move(cb), name, tp = std::move(tp), self, this] {
             auto proxy = [&cb, &name, &tp, this]<std::size_t... Index>(std::index_sequence<Index...>){
                 cb(call<rt>(name, std::get<Index>(tp)...));
             };
@@ -117,7 +117,7 @@ public:
     co_chan<Result<R>> async_call(const std::string& name, Params&& ... ps) {
         co_chan<Result<R>> chan;
         RpcClient::ptr self = shared_from_this();
-        go co_scheduler(m_worker) [self, chan, name, ps..., this] () mutable {
+        go [self, chan, name, ps..., this] () mutable {
             chan << call<R>(name, ps...);
             self = nullptr;
         };
@@ -277,9 +277,6 @@ private:
     std::map<std::string, std::function<void(Serializer)>> m_subHandle;
     // 保护m_subHandle
     MutexType m_sub_mtx;
-
-    co::Scheduler* m_worker;
-    co_timer m_timer;
 };
 
 

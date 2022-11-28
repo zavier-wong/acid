@@ -21,11 +21,12 @@ public:
     using ptr = std::shared_ptr<RpcServer>;
     using MutexType = co::co_mutex;
 
-    RpcServer(co::Scheduler* worker = &co_sched, co::Scheduler* accept_worker = &co_sched);
+    RpcServer();
     ~RpcServer();
     bool bind(Address::ptr address) override;
     bool bindRegistry(Address::ptr address);
     void start() override;
+    void stop() override;
     /**
      * @brief 注册函数
      * @param[in] name 注册的函数名
@@ -160,7 +161,7 @@ private:
     // 保护 m_subscribes
     MutexType m_sub_mtx;
     // 停止清理订阅协程
-    std::atomic_bool m_stop_clean = false;
+    std::atomic_bool m_stop_clean{};
     // 等待清理协程停止
     co::co_chan<bool> m_clean_chan;
 };
