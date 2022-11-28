@@ -34,5 +34,6 @@ void test_publish() {
     server.start();
 }
 int main() {
-    test_publish();
+    go test_publish;
+    co_sched.Start();
 }

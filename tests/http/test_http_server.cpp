@@ -4,7 +4,7 @@
 #include <sstream>
 #include "acid/http/http_server.h"
 using namespace acid;
-int main(){
+void Main() {
     // GetLogInstance()->set_level(spdlog::level::off);
 
     Address::ptr address = Address::LookupAny("0.0.0.0:8081");
@@ -60,4 +60,9 @@ int main(){
     }
 
     server.start();
+}
+
+int main() {
+    go Main;
+    co_sched.Start(0);
 }

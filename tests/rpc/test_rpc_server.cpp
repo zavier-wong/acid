@@ -20,11 +20,8 @@ std::string CatString(std::vector<std::string> v){
     }
     return res;
 }
-int main(int argc, char** argv) {
+void Main() {
     int port = 9000;
-    if (argv[1]) {
-        port = std::stoi(argv[1]);
-    }
 
     Address::ptr address = IPv4Address::Create("127.0.0.1",port);
     Address::ptr registry = Address::LookupAny("127.0.0.1:8000");
@@ -51,4 +48,9 @@ int main(int argc, char** argv) {
         }
     };
     server.start();
+}
+
+int main() {
+    go Main;
+    co_sched.Start();
 }
