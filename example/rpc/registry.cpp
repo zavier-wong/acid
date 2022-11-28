@@ -8,7 +8,7 @@ using namespace acid;
 using namespace acid::rpc;
 
 // 服务注册中心
-int main() {
+void Main() {
     Address::ptr address = Address::LookupAny("127.0.0.1:8000");
     RpcServiceRegistry server;
     // 服务注册中心绑定在8080端口
@@ -16,4 +16,9 @@ int main() {
         sleep(1);
     }
     server.start();
+}
+
+int main() {
+    go Main;
+    co_sched.Start();
 }

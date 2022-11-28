@@ -33,11 +33,14 @@ public:
 };
 
 int main(){
-    auto addr = Address::LookupAny("0.0.0.0:8080");
-    SPDLOG_INFO(addr->toString());
-    EchoServer server;
-    while(!server.bind(addr)){
-        sleep(3);
-    }
-    server.start();
+    go [] {
+        auto addr = Address::LookupAny("0.0.0.0:8080");
+        SPDLOG_INFO(addr->toString());
+        EchoServer server;
+        while(!server.bind(addr)){
+            sleep(3);
+        }
+        server.start();
+    };
+    co_sched.Start();
 }
