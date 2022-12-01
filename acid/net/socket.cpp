@@ -146,16 +146,14 @@ bool Socket::connect(const Address::ptr address, uint64_t timeout_ms) {
 
     if(timeout_ms == (uint64_t)-1){
         if(::connect(m_sock, address->getAddr(), address->getAddrLen())){
-            SPDLOG_LOGGER_DEBUG(g_logger, "sock {} connect to {} error, errno={}, errstr={}",
-                            m_sock, address->toString(), errno, strerror(errno));
+            // SPDLOG_LOGGER_DEBUG(g_logger, "sock {} connect to {} error, errno={}, errstr={}", m_sock, address->toString(), errno, strerror(errno));
             close();
             return false;
         }
     } else {
         if (!co::setTcpConnectTimeout(m_sock, timeout_ms) ||
             ::connect(m_sock, address->getAddr(), address->getAddrLen())) {
-            SPDLOG_LOGGER_DEBUG(g_logger, "sock {} connect to {} error, errno={}, errstr={}",
-                           m_sock, address->toString(), errno, strerror(errno));
+            // SPDLOG_LOGGER_DEBUG(g_logger, "sock {} connect to {} error, errno={}, errstr={}", m_sock, address->toString(), errno, strerror(errno));
             close();
             return false;
         }
