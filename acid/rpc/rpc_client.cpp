@@ -55,6 +55,7 @@ void RpcClient::close() {
 }
 
 bool RpcClient::connect(Address::ptr address){
+    close();
     std::unique_lock<co::co_mutex> lock(m_mutex);
     Socket::ptr sock = Socket::CreateTCP(address);
 
@@ -83,7 +84,6 @@ bool RpcClient::connect(Address::ptr address){
             SPDLOG_LOGGER_DEBUG(g_logger, "heart beat");
             if (m_isHeartClose) {
                 SPDLOG_LOGGER_DEBUG(g_logger, "Server closed");
-                close();
                 return;
             }
             // 创建心跳包
@@ -107,7 +107,6 @@ void RpcClient::handleSend() {
     // Channel 被关闭时会退出循环
     while (m_chan.pop(request)) {
         if (!request) {
-            SPDLOG_LOGGER_DEBUG(g_logger, "RpcClient::handleSend() fail");
             continue;
         }
         // 发送请求
@@ -123,8 +122,8 @@ void RpcClient::handleRecv() {
         // 接收响应
         Protocol::ptr response = m_session->recvProtocol();
         if (!response) {
-            SPDLOG_LOGGER_DEBUG(g_logger, "RpcClient::handleRecv() fail");
-            // close();
+            SPDLOG_LOGGER_DEBUG(g_logger, "rpc {} closed", m_session->getSocket()->toString());
+            m_session->close();
             break;
         }
         m_isHeartClose = false;

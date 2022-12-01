@@ -217,12 +217,9 @@ private:
             }
         }
 
-        {
-            std::unique_lock<co::co_mutex> lock(m_mutex);
-            if (!m_isClose) {
-                // 删除序列号与 Channel 的映射
-                m_responseHandle.erase(it);
-            }
+        if (!m_isClose) {
+            // 删除序列号与 Channel 的映射
+            m_responseHandle.erase(it);
         }
 
         if (timeout) {

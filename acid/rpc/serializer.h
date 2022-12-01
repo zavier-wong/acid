@@ -209,7 +209,7 @@ public:
         read(size);
         for (size_t i = 0; i < size; ++i) {
             T t;
-            read(t);
+            (*this) >> t;
             v.template emplace_back(t);
         }
         return *this;
@@ -230,7 +230,7 @@ public:
         read(size);
         for (size_t i = 0; i < size; ++i) {
             T t;
-            read(t);
+            (*this) >> t;
             v.template emplace_back(t);
         }
         return *this;
@@ -251,7 +251,7 @@ public:
         read(size);
         for (size_t i = 0; i < size; ++i) {
             T t;
-            read(t);
+            (*this) >> t;
             v.template emplace(t);
         }
         return *this;
@@ -272,7 +272,7 @@ public:
         read(size);
         for (size_t i = 0; i < size; ++i) {
             T t;
-            read(t);
+            (*this) >> t;
             v.template emplace(t);
         }
         return *this;
@@ -293,7 +293,7 @@ public:
         read(size);
         for (size_t i = 0; i < size; ++i) {
             T t;
-            read(t);
+            (*this) >> t;
             v.template emplace(t);
         }
         return *this;
@@ -314,7 +314,7 @@ public:
         read(size);
         for (size_t i = 0; i < size; ++i) {
             T t;
-            read(t);
+            (*this) >> t;
             v.template emplace(t);
         }
         return *this;
