@@ -66,14 +66,14 @@ struct AppendEntriesArgs {
     std::vector<Entry> entries; // 需要被保存的日志条目（被当做心跳使用时，则日志条目内容为空；为了提高效率可能一次性发送多个）
     int64_t leaderCommit;	    // 领导人的已知已提交的最高的日志条目的索引
     std::string toString() const {
-        std::string str = "{ term = " + std::to_string(term) +
-                          ", leaderId = " + std::to_string(leaderId) +
-                          ", prevLogIndex = " + std::to_string(prevLogIndex) +
-                          ", prevLogTerm = " + std::to_string(prevLogTerm) +
-                          ", entries size = " + std::to_string(entries.size()) +
-                          ", leaderCommit = " + std::to_string(leaderCommit) +
-                          " }";
-        return str;
+        std::string str = fmt::format("Term: {}, LeaderId: {}, PrevLogIndex: {}, PrevLogTerm: {}, LeaderCommit: {}, Entries: [", term, leaderId, prevLogIndex, prevLogTerm, leaderCommit);
+        for (int i = 0; i < (int)entries.size(); ++i) {
+            if (i) {
+                str.push_back(',');
+            }
+            str += entries[i].toString();
+        }
+        return "{" + str + "]}";
     }
     friend rpc::Serializer& operator<<(rpc::Serializer& s, const AppendEntriesArgs& arg) {
         s << arg.term << arg.leaderId << arg.prevLogIndex << arg.prevLogTerm << arg.entries << arg.leaderCommit;
@@ -92,19 +92,18 @@ struct AppendEntriesReply {
     bool success = false;          // 如果跟随者所含有的条目和 prevLogIndex 以及 prevLogTerm 匹配上了，则为 true
     int64_t term = 0;              // 当前任期，如果大于领导人的任期则切换为追随者
     int64_t leaderId = 0;          // 当前任期的leader
-    int64_t conflictTerm = 0;
-    int64_t conflictIndex = 0;
+    int64_t nextIndex = 0;         // 下一个期望接收的日志
     std::string toString() const {
-        std::string str = fmt::format("Success: {}, Term: {}, LeaderId: {}, ConflictTerm: {}, ConflictIndex: {}",
-                                      success, term, leaderId, conflictTerm, conflictIndex);
+        std::string str = fmt::format("Success: {}, Term: {}, LeaderId: {}, NextIndex: {}",
+                                      success, term, leaderId, nextIndex);
         return "{" + str + "}";
     }
     friend rpc::Serializer& operator<<(rpc::Serializer& s, const AppendEntriesReply& reply) {
-        s << reply.success << reply.term << reply.leaderId << reply.conflictTerm << reply.conflictIndex;
+        s << reply.success << reply.term << reply.leaderId << reply.nextIndex;
         return s;
     }
     friend rpc::Serializer& operator>>(rpc::Serializer& s, AppendEntriesReply& reply) {
-        s >> reply.success >> reply.term >> reply.leaderId >> reply.conflictTerm >> reply.conflictIndex;
+        s >> reply.success >> reply.term >> reply.leaderId >> reply.nextIndex;
         return s;
     }
 };
@@ -160,6 +159,10 @@ public:
     std::optional<InstallSnapshotReply> installSnapshot(const InstallSnapshotArgs& arg);
 
     Address::ptr getAddress() const { return m_address;}
+
+private:
+    bool connect();
+
 private:
     int64_t m_id;
     rpc::RpcClient::ptr m_client;

@@ -29,7 +29,9 @@ struct HardState {
         return s;
     }
 };
-
+/**
+ * @brief 持久化存储
+ */
 class Persister {
 public:
     using ptr = std::shared_ptr<Persister>;
@@ -39,18 +41,28 @@ public:
 
     ~Persister() = default;
 
+    /**
+     * @brief 获取持久化的 raft 状态
+     */
     std::optional <HardState> loadHardState();
-
+    /**
+     * @brief 获取持久化的 log
+     */
     std::optional <std::vector<Entry>> loadEntries();
-
+    /**
+     * @brief 获取快照
+     */
     Snapshot::ptr loadSnapshot();
-
+    /**
+     * @brief 持久化
+     */
     bool persist(const HardState &hs, const std::vector <Entry> &ents, const Snapshot::ptr snapshot = nullptr);
-
+    /**
+     * @brief 获取快照路径
+     */
     std::string getFullPathName() {
         return canonical(m_path);
     }
-
 private:
     MutexType m_mutex;
     const std::filesystem::path m_path;

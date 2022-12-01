@@ -3,6 +3,7 @@
 //
 
 #include <random>
+#include <utility>
 #include "acid/raft/raft_node.h"
 #include "acid/common/config.h"
 
@@ -48,63 +49,49 @@ struct _RaftNodeIniter{
 static _RaftNodeIniter s_initer;
 
 
-RaftNode::RaftNode(int64_t id, RaftLog rl, co::co_chan<Entry> applyChan, co::co_chan<std::string> proposeChan,
-                   co::Scheduler* worker, co::Scheduler* accept_worker)
-        : RpcServer(worker, accept_worker)
-        , m_id(id)
-        , m_logs(std::move(rl))
-        , m_applyChan(applyChan)
-        , m_proposeChan(proposeChan){
+RaftNode::RaftNode(int64_t id, Persister::ptr persister, co::co_chan<ApplyMsg> applyChan)
+        : m_id(id)
+        , m_logs(persister)
+        , m_persister(persister)
+        , m_applyChan(std::move(applyChan)) {
     rpc::RpcServer::setName("Raft-Node[" + std::to_string(id) + "]");
     // 注册服务 RequestVote
-    registerMethod("RaftNode::handleRequestVote",[this](RequestVoteArgs args){
-        return handleRequestVote(args);
+    registerMethod("RaftNode::handleRequestVote",[this](RequestVoteArgs args) {
+        return handleRequestVote(std::move(args));
     });
     // 注册服务 AppendEntries
-    registerMethod("RaftNode::handleAppendEntries", [this](AppendEntriesArgs args){
+    registerMethod("RaftNode::handleAppendEntries", [this](AppendEntriesArgs args) {
         return handleAppendEntries(std::move(args));
     });
     // 注册服务 InstallSnapshot
-    registerMethod("RaftNode::handleInstallSnapshot", [this](InstallSnapshotArgs args){
+    registerMethod("RaftNode::handleInstallSnapshot", [this](InstallSnapshotArgs args) {
         return handleInstallSnapshot(std::move(args));
     });
-
 }
 
 RaftNode::~RaftNode() {
-    std::unique_lock<co::co_mutex> lock(m_mutex);
-    m_proposeChan.close();
+    std::unique_lock<MutexType> lock(m_mutex);
     m_applyChan.close();
-    m_heartbeatTimer.StopTimer();
-    m_electionTimer.StopTimer();
+    m_heartbeatTimer.stop();
+    m_electionTimer.stop();
 }
 
 void RaftNode::start() {
-    std::unique_lock<co::co_mutex> lock(m_mutex);
-    becomeFollower(0);
+    auto hs = m_persister->loadHardState();
+    if (hs) {
+        // 恢复崩溃前的状态
+        m_currentTerm = hs->term;
+        m_votedFor = hs->vote;
+        SPDLOG_LOGGER_INFO(g_logger, "initialize from state persisted before a crash, term {}, vote {}, commit {}",
+                           hs->term, hs->vote, hs->commit);
+    } else {
+        becomeFollower(0);
+    }
+
     rescheduleElection();
-    resetHeartbeatTimer();
 
-    go co_scheduler(m_worker) [this]{
+    go [this] {
         applier();
-    };
-
-    go co_scheduler(m_worker) [this] {
-        // "%x not forwarding to leader %x at term %ld; dropping proposal"
-        std::string data;
-        while (m_proposeChan.pop(data)) {
-            Entry ent;
-            ent.data = data;
-            std::unique_lock<co::co_mutex> lock(m_mutex);
-            if (m_state != RaftState::Leader) {
-                SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] no leader at term {}; dropping proposal", m_id, m_currentTerm);
-                continue;
-            }
-            appendEntry(ent);
-            SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] receives a new log entry[{}] to replicate in term {}",
-               m_id, data, m_currentTerm);
-            broadcastHeartbeat(false);
-        }
     };
 
     RpcServer::start();
@@ -119,6 +106,7 @@ void RaftNode::startElection() {
 
     SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] starts election with RequestVoteArgs {}", m_id, request.toString());
     m_votedFor = m_id;
+    persist();
     // 统计投票结果，自己开始有一票
     std::shared_ptr<int64_t> grantedVotes = std::make_shared<int64_t>(1);
 
@@ -128,7 +116,7 @@ void RaftNode::startElection() {
             auto reply = peer.second->requestVote(request);
             if (!reply)
                 return;
-            std::unique_lock<co::co_mutex> lock(m_mutex);
+            std::unique_lock<MutexType> lock(m_mutex);
             SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] receives RequestVoteReply {} from Node[{}] after sending RequestVoteArgs {} in term {}",
                 m_id, reply->toString(), peer.first, request.toString(), m_currentTerm);
             // 检查自己状态是否改变
@@ -153,77 +141,67 @@ void RaftNode::startElection() {
 
 void RaftNode::applier() {
     while (!isStop()) {
-        std::unique_lock<co::co_mutex> lock(m_mutex);
+        std::unique_lock<MutexType> lock(m_mutex);
         // 如果没有需要apply的日志则等待
-        while (m_logs.getApplied() >= m_logs.getCommitted()) {
+        while (!m_logs.hasNextEntries()) {
             m_applyCond.wait(lock);
         }
 
-        auto last_commit = m_logs.getCommitted();
+        auto last_commit = m_logs.committed();
         auto ents = m_logs.nextEntries();
+        std::vector<ApplyMsg> msg;
+        for (auto& ent: ents) {
+            msg.emplace_back(ent);
+        }
 
         lock.unlock();
-        for (auto& entry: ents) {
-            m_applyChan << entry;
+        for (auto& m: msg) {
+            m_applyChan << m;
         }
         lock.lock();
-        SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] applies entries {}-{} in term {}", m_id, m_logs.getApplied(), last_commit, m_currentTerm);
+        SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] applies entries {}-{} in term {}", m_id, m_logs.applied(), last_commit, m_currentTerm);
         // 1. push applyCh 结束之后更新 lastApplied 的时候一定得用之前的 commitIndex ，因为很可能在 push channel 期间发生了改变。
         // 2. 防止与 installSnapshot 并发导致 lastApplied 回退：需要注意到，applier 协程在 push channel 时，中间可能夹杂有 snapshot 也在 push channel。
         // 如果该 snapshot 有效，那么在 CondInstallSnapshot 函数里上层状态机和 raft 模块就会原子性的发生替换，即上层状态机更新为 snapshot 的状态，
         // raft 模块更新 log, commitIndex, lastApplied 等等，此时如果这个 snapshot 之后还有一批旧的 entry 在 push channel，
         // 那上层服务需要能够知道这些 entry 已经过时，不能再 apply，同时 applier 这里也应该加一个 Max 自身的函数来防止 lastApplied 出现回退。
         // TODO
-        m_logs.appliedTo(std::max(m_logs.getApplied(), last_commit));
+        m_logs.appliedTo(std::max(m_logs.applied(), last_commit));
     }
 }
 
-void RaftNode::replicator(int64_t peer) {
-    std::unique_lock<co::co_mutex> lock(m_mutex);
-    while (!isStop()) {
-        while (!needReplicating(peer)) {
-            m_replicatorCond[peer].wait(lock);
-        }
-        replicateOneRound(peer);
+void RaftNode::broadcastHeartbeat() {
+    for (auto& peer: m_peers) {
+        go [id = peer.first, this]{
+            replicateOneRound(id);
+        };
     }
 }
 
-void RaftNode::broadcastHeartbeat(bool isHeartbeat) {
-    for ([[maybe_unused]] auto [id, _]: m_peers) {
-        if (isHeartbeat) {
-            go co_scheduler(m_worker) [id = id, this]{
-                replicateOneRound(id);
-            };
-        } else {
-            m_replicatorCond[id].notify_one();
-        }
-    }
-}
 
 void RaftNode::replicateOneRound(int64_t peer) {
     // 发送 rpc的时候一定不要持锁，否则很可能产生死锁。
-    std::unique_lock<co::co_mutex> lock(m_mutex);
+    std::unique_lock<MutexType> lock(m_mutex);
     if (m_state != RaftState::Leader) {
         return;
     }
-    int64_t term = m_logs.term(m_nextIndex[peer] - 1);
 
-    auto [ents, err] = m_logs.entries(m_nextIndex[peer], m_maxLogSize);
-
-    // 如果未能获得term或entries，则发送快照
-    if (term < 0 || err) {
+    int64_t prev_index = m_nextIndex[peer] - 1;
+    // 该节点的进度远远落后，直接发送快照同步
+    if (prev_index < m_logs.lastSnapshotIndex()) {
         InstallSnapshotArgs request{};
-        Snapshot::ptr snapshot = m_logs.snapshot();
+        Snapshot::ptr snapshot = m_persister->loadSnapshot();
         if (!snapshot || snapshot->empty()) {
             SPDLOG_LOGGER_ERROR(g_logger, "need non-empty snapshot");
             return;
         }
-        request.snapshot = *snapshot;
-        request.term = m_currentTerm;
-        request.leaderId = m_id;
 
         SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] [firstIndex: {}, commit: {}] sent snapshot[index: {}, term: {}] to Node[{}]",
-            m_id, m_logs.firstIndex(), m_logs.getCommitted(), snapshot->metadata.index, snapshot->metadata.index, peer);
+                            m_id, m_logs.firstIndex(), m_logs.committed(), snapshot->metadata.index, snapshot->metadata.index, peer);
+
+        request.snapshot = std::move(*snapshot);
+        request.term = m_currentTerm;
+        request.leaderId = m_id;
 
         lock.unlock();
 
@@ -234,21 +212,21 @@ void RaftNode::replicateOneRound(int64_t peer) {
         lock.lock();
 
         SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] receives InstallSnapshotReply {} from Node[{}] after sending InstallSnapshotArgs {} in term {}",
-            m_id, reply->toString(), peer, request.toString(), m_currentTerm);
+                            m_id, reply->toString(), peer, request.toString(), m_currentTerm);
 
         // 如果因为网络原因集群选举出新的leader则自己变成follower
         if (reply->term > m_currentTerm) {
             becomeFollower(reply->term, reply->leaderId);
         }
     } else {
+        auto ents = m_logs.entries(m_nextIndex[peer], m_maxLogSize);
         AppendEntriesArgs request{};
         request.term = m_currentTerm;
         request.leaderId = m_id;
-        request.leaderCommit = m_logs.getCommitted();
-        request.prevLogIndex = m_nextIndex[peer] - 1;
-        request.prevLogTerm = term;
+        request.leaderCommit = m_logs.committed();
+        request.prevLogIndex = prev_index;
+        request.prevLogTerm = m_logs.term(prev_index);
         request.entries = ents;
-
         lock.unlock();
 
         auto reply = m_peers[peer]->appendEntries(request);
@@ -259,8 +237,8 @@ void RaftNode::replicateOneRound(int64_t peer) {
 
         lock.lock();
 
-        SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] receives AppendEntriesReply {} from Node[{}] after sending AppendEntriesArgs {} in term {}",
-                m_id, reply->toString(), peer, request.toString(), m_currentTerm);
+        SPDLOG_LOGGER_TRACE(g_logger, "Node[{}] receives AppendEntriesReply {} from Node[{}] after sending AppendEntriesArgs {} in term {}",
+                            m_id, reply->toString(), peer, request.toString(), m_currentTerm);
 
         if (m_state != RaftState::Leader) {
             return;
@@ -275,56 +253,47 @@ void RaftNode::replicateOneRound(int64_t peer) {
         if (reply->term < m_currentTerm) {
             return;
         }
-        // 日志追加失败，根据 conflictIndex 和 conflictTerm 更新 m_nextIndex 和 m_matchIndex
+        // 日志追加失败，根据 nextIndex 更新 m_nextIndex 和 m_matchIndex
         if (!reply->success) {
-            m_nextIndex[peer] = reply->conflictIndex;
-            m_matchIndex[peer] = std::min(m_matchIndex[peer], reply->conflictIndex - 1);
-            return;
-        }
-        // 只是一个空的心跳包就直接返回
-        if (ents.empty()) {
+            if (reply->nextIndex && reply->nextIndex > m_logs.lastSnapshotIndex()) {
+                m_nextIndex[peer] = reply->nextIndex;
+                m_matchIndex[peer] = std::min(m_matchIndex[peer], reply->nextIndex - 1);
+            }
             return;
         }
 
         // 日志追加成功，则更新 m_nextIndex 和 m_matchIndex
-        m_nextIndex[peer] += (int64_t)ents.size();
-        m_matchIndex[peer] = m_nextIndex[peer] - 1;
+        if (reply->nextIndex > m_nextIndex[peer]) {
+            m_nextIndex[peer] = reply->nextIndex;
+            m_matchIndex[peer] = m_nextIndex[peer] - 1;
+        }
 
         int64_t last_index = m_matchIndex[peer];
 
-        if (m_logs.getCommitted() >= last_index
-                // 只有领导人当前任期里的日志条目可以被提交
-                || ents.back().term != m_currentTerm) {
-            return;
-        }
-
         // 计算副本数目大于节点数量的一半才提交一个当前任期内的日志
         int64_t vote = 1;
-        for ([[maybe_unused]] auto [_, match]: m_matchIndex) {
-            if (match >= last_index) {
+        for (auto match: m_matchIndex) {
+            if (match.second >= last_index) {
                 ++vote;
             }
-        }
-        // 假设存在 N 满足N > commitIndex，使得大多数的 matchIndex[i] ≥ N以及log[N].term == currentTerm 成立，
-        // 则令 commitIndex = N（5.3 和 5.4 节）
-        if (vote > ((int64_t)m_peers.size() + 1) / 2) {
-            m_logs.maybeCommit(last_index, m_currentTerm);
+            // 假设存在 N 满足N > commitIndex，使得大多数的 matchIndex[i] ≥ N以及log[N].term == currentTerm 成立，
+            // 则令 commitIndex = N（5.3 和 5.4 节）
+            if (vote > ((int64_t)m_peers.size() + 1) / 2) {
+                // 只有领导人当前任期里的日志条目可以被提交
+                if (m_logs.maybeCommit(last_index, m_currentTerm)) {
+                    m_applyCond.notify_one();
+                }
+            }
         }
     }
-
 }
-
-bool RaftNode::needReplicating(int64_t peer) {
-    std::unique_lock<co::co_mutex> lock(m_mutex);
-    return m_state == RaftState::Leader && m_matchIndex[peer] < m_logs.lastIndex();
-}
-
 
 RequestVoteReply RaftNode::handleRequestVote(RequestVoteArgs request) {
-    std::unique_lock<co::co_mutex> lock(m_mutex);
+    std::unique_lock<MutexType> lock(m_mutex);
     RequestVoteReply reply{};
     co_defer_scope {
-           // 投票后节点的状态
+        persist();
+        // 投票后节点的状态
         SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] before processing RequestVoteArgs {} and reply RequestVoteReply {}, state is {}",
                               m_id, request.toString(), reply.toString(), toString());
     };
@@ -370,11 +339,20 @@ RequestVoteReply RaftNode::handleRequestVote(RequestVoteArgs request) {
 }
 
 AppendEntriesReply RaftNode::handleAppendEntries(AppendEntriesArgs request) {
-    std::unique_lock<co::co_mutex> lock(m_mutex);
+    std::unique_lock<MutexType> lock(m_mutex);
     AppendEntriesReply reply{};
-    // 由于心跳比较频繁，禁掉了这个log，只要将Defer_改为Defer就可以开启
     co_defer_scope {
-        SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] before processing AppendEntriesArgs {} and reply AppendEntriesResponse {}, state is {}",
+        persist();
+        if (reply.success && m_logs.committed() < request.leaderCommit) {
+           // 更新提交索引，为什么取了个最小？committed是leader发来的，是全局状态，但是当前节点
+           // 可能落后于全局状态，所以取了最小值。last_index 是这个节点最新的索引， 不是最大的可靠索引，
+           // 如果此时节点异常了，会不会出现commit index以前的日志已经被apply，但是有些日志还没有被持久化？
+           // 这里需要解释一下，raft更新了commit index，raft会把commit index以前的日志交给使用者apply同时
+           // 会把不可靠日志也交给使用者持久化，所以这要求必须先持久化日志再apply日志，否则就会出现刚刚提到的问题。
+           m_logs.commitTo(std::min(request.leaderCommit, m_logs.lastIndex()));
+           m_applyCond.notify_one();
+        }
+        SPDLOG_LOGGER_TRACE(g_logger, "Node[{}] before processing AppendEntriesArgs {} and reply AppendEntriesResponse {}, state is {}",
             m_id, request.toString(), reply.toString(), toString());
     };
     // 拒绝任期小于自己的 leader 的日志复制请求
@@ -395,7 +373,7 @@ AppendEntriesReply RaftNode::handleAppendEntries(AppendEntriesArgs request) {
     rescheduleElection();
 
     // 拒绝错误的日志追加请求
-    if (request.prevLogIndex < m_logs.firstIndex()) {
+    if (request.prevLogIndex < m_logs.lastSnapshotIndex()) {
         reply.term = 0;
         reply.leaderId = -1;
         reply.success = false;
@@ -404,41 +382,27 @@ AppendEntriesReply RaftNode::handleAppendEntries(AppendEntriesArgs request) {
         return reply;
     }
 
-    int64_t last_index = m_logs.maybeAppend(request.prevLogIndex, request.prevLogTerm,
-                       request.leaderCommit, request.entries);
+    int64_t last_index = m_logs.maybeAppend(request.prevLogIndex, request.prevLogTerm, request.leaderCommit, request.entries);
 
-    // 加速解决节点间日志冲突的优化
     if (last_index < 0) {
+        // 尝试查找冲突的日志
+        int64_t conflict = m_logs.findConflict(request.prevLogIndex, request.prevLogTerm);
         reply.term = m_currentTerm;
         reply.leaderId = m_leaderId;
         reply.success = false;
-
-        int64_t lastIndex = m_logs.lastIndex();
-        if (lastIndex < request.prevLogIndex) {
-            reply.conflictTerm = -1;
-            reply.conflictIndex = lastIndex + 1;
-        } else {
-            // 找出当前冲突任期的第一条日志索引
-            int64_t firstIndex = m_logs.firstIndex();
-            reply.conflictTerm = m_logs.term(request.prevLogIndex - firstIndex);
-            int64_t index = request.prevLogIndex -1;
-            while (index >= firstIndex &&
-                   (m_logs.term(index - firstIndex) == reply.conflictTerm)) {
-                --index;
-            }
-            reply.conflictIndex = index;
-        }
+        reply.nextIndex = conflict;
         return reply;
     }
 
     reply.term = m_currentTerm;
     reply.leaderId = m_leaderId;
     reply.success = true;
+    reply.nextIndex = last_index + 1;
     return reply;
 }
 
 InstallSnapshotReply RaftNode::handleInstallSnapshot(InstallSnapshotArgs request) {
-    std::unique_lock<co::co_mutex> lock(m_mutex);
+    std::unique_lock<MutexType> lock(m_mutex);
     InstallSnapshotReply reply{};
     co_defer_scope {
         SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] before processing InstallSnapshotArgs {} and reply InstallSnapshotReply {}, state is {}",
@@ -460,7 +424,7 @@ InstallSnapshotReply RaftNode::handleInstallSnapshot(InstallSnapshotArgs request
     const int64_t snap_term = request.snapshot.metadata.term;
 
     // 过时的快照
-    if (snap_index <= m_logs.getCommitted()) {
+    if (snap_index <= m_logs.committed()) {
         SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] ignored snapshot [index: {}, term: {}]", m_id, snap_index, snap_term);
         return reply;
     }
@@ -469,58 +433,47 @@ InstallSnapshotReply RaftNode::handleInstallSnapshot(InstallSnapshotArgs request
     if (m_logs.matchLog(snap_index, snap_term)) {
         SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] fast-forwarded commit to snapshot [index: {}, term: {}]", m_id, snap_index, snap_term);
         m_logs.commitTo(snap_index);
+        m_applyCond.notify_one();
         return reply;
     }
 
     SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] starts to restore snapshot [index: {}, term: {}]", m_id, snap_index, snap_term);
 
-    m_logs.restore(std::make_shared<Snapshot>(request.snapshot));
-
+    //m_logs.restore(std::make_shared<Snapshot>(request.snapshot));
+    go [snap = request.snapshot, this] {
+        m_applyChan << ApplyMsg{snap};
+    };
+    persist(std::make_shared<Snapshot>(std::move(request.snapshot)));
     return reply;
 }
 
 void RaftNode::addPeer(int64_t id, Address::ptr address) {
-    std::unique_lock<co::co_mutex> lock(m_mutex);
     RaftPeer::ptr peer = std::make_shared<RaftPeer>(id, address);
     m_peers[id] = peer;
     m_nextIndex[id] = 0;
     m_matchIndex[id] = 0;
-    // 对每个raft节点开启一个日志复制协程
-    go co_scheduler(m_worker) [id, this] {
-        replicator(id);
-    };
     SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] add peer[{}], address is {}", m_id, id, address->toString());
 }
 
 std::string RaftNode::toString() {
-    std::string state;
-    switch (m_state) {
-        case Follower:
-            state = "Follower";
-            break;
-        case Candidate:
-            state = "Candidate";
-            break;
-        case Leader:
-            state = "Leader";
-            break;
-    }
+    std::map<RaftState, std::string> mp{{Follower, "Follower"}, {Candidate, "Candidate"}, {Leader, "Leader"}};
     std::string str = fmt::format("Id: {}, State: {}, LeaderId: {}, CurrentTerm: {}, VotedFor: {}, CommitIndex: {}, LastApplied: {}",
-                        m_id, state, m_leaderId, m_currentTerm, m_votedFor, m_logs.getCommitted(), m_logs.getApplied());
+                        m_id, mp[m_state], m_leaderId, m_currentTerm, m_votedFor, m_logs.committed(), m_logs.applied());
     return "{" + str + "}";
 }
 
 void RaftNode::becomeFollower(int64_t term, int64_t leaderId) {
     // 成为follower停止心跳定时器
     if (m_heartbeatTimer && m_state == RaftState::Leader) {
-        m_heartbeatTimer.StopTimer();
+        m_heartbeatTimer.stop();
     }
 
     m_state = RaftState::Follower;
     m_currentTerm = term;
     m_votedFor = -1;
     m_leaderId = leaderId;
-    SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] became follower at term [{}], state is {}}", m_id, term, toString());
+    persist();
+    SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] became follower at term [{}], state is {}", m_id, term, toString());
 }
 
 void RaftNode::becomeCandidate() {
@@ -528,13 +481,14 @@ void RaftNode::becomeCandidate() {
     ++m_currentTerm;
     m_votedFor = m_id;
     m_leaderId = -1;
+    persist();
     SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] became Candidate at term {}, state is {}", m_id, m_currentTerm, toString());
 }
 
 void RaftNode::becomeLeader() {
     // 成为leader停止选举定时器
     if (m_electionTimer) {
-        m_electionTimer.StopTimer();
+        m_electionTimer.stop();
     }
     m_state = RaftState::Leader;
     m_leaderId = m_id;
@@ -543,43 +497,42 @@ void RaftNode::becomeLeader() {
     // nextIndex初始化值为lastIndex+1，即领导者最后一个日志序号+1，因此其实这个日志序号是不存在的，显然领导者也不
     // 指望一次能够同步成功，而是拿出一个值来试探。matchIndex初始化值为0，这个很好理解，因为他还未与任何节点同步成功过，
     // 所以直接为0。
-    for ([[maybe_unused]] auto& [id, _] : m_peers) {
-        m_nextIndex[id] = m_logs.lastIndex() + 1;
-        m_matchIndex[id] = 0;
+    for (auto& peer : m_peers) {
+        m_nextIndex[peer.first] = m_logs.lastIndex() + 1;
+        m_matchIndex[peer.first] = 0;
     }
+    persist();
     SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] became Leader at term {}, state is {}", m_id, m_currentTerm, toString());
 
     // note: 即使日志已经被同步到了大多数个节点上，依然不能认为是已经提交了
     // 所以 leader 上任后应该提交一条空日志来提交之前的日志
-    Entry empty;
-    appendEntry(empty);
+    Propose("");
     // 成为领导者，发起一轮心跳
-    broadcastHeartbeat(true);
+    broadcastHeartbeat();
     // 开启心跳定时器
     resetHeartbeatTimer();
 }
 
 void RaftNode::rescheduleElection() {
-    m_electionTimer.StopTimer();
-    m_electionTimer = m_timer.ExpireAt(std::chrono::milliseconds(GetRandomizedElectionTimeout()), [this] {
-        std::unique_lock<co::co_mutex> lock(m_mutex);
+    m_electionTimer.stop();
+    m_electionTimer = CycleTimer(GetRandomizedElectionTimeout(), [this] {
+        std::unique_lock<MutexType> lock(m_mutex);
         if (m_state != RaftState::Leader) {
             becomeCandidate();
             // 异步投票，不阻塞选举定时器
             startElection();
         }
-        rescheduleElection();
     });
 }
 
 void RaftNode::resetHeartbeatTimer() {
-    m_heartbeatTimer = m_timer.ExpireAt(std::chrono::milliseconds(GetStableHeartbeatTimeout()), [this] {
-        std::unique_lock<co::co_mutex> lock(m_mutex);
+    m_heartbeatTimer.stop();
+    m_heartbeatTimer = CycleTimer(GetStableHeartbeatTimeout(), [this] {
+        std::unique_lock<MutexType> lock(m_mutex);
         if (m_state == RaftState::Leader) {
             // broadcast
-            broadcastHeartbeat(true);
+            broadcastHeartbeat();
         }
-        resetHeartbeatTimer();
     });
 }
 
@@ -593,24 +546,43 @@ uint64_t RaftNode::GetRandomizedElectionTimeout() {
     return dist(engine);
 }
 
-
-
-bool RaftNode::appendEntry(Entry &entry) {
-    auto ents = std::vector<Entry>(1, entry);
-    bool rt = appendEntry(ents);
-    entry = ents[0];
-    return rt;
+void RaftNode::persist(Snapshot::ptr snap) {
+    HardState hs;
+    hs.vote = m_votedFor;
+    hs.term = m_currentTerm;
+    hs.commit = m_logs.committed();
+    m_persister->persist(hs, m_logs.allEntries(), snap);
 }
 
-bool RaftNode::appendEntry(std::vector<Entry> &entries) {
-    auto last_index = m_logs.lastIndex();
-    for (int i = 0; i < (int64_t)entries.size(); ++i) {
-        entries[i].term = m_currentTerm;
-        entries[i].index = last_index + 1 + i;
+void RaftNode::persistStateAndSnapshot(int64_t index, const std::string& snap) {
+    std::unique_lock<MutexType> lock(m_mutex);
+    auto snapshot = m_logs.createSnapshot(index, snap);
+    if (snapshot) {
+        SPDLOG_LOGGER_DEBUG(g_logger, "starts to restore snapshot [index: {}, term: {}]",
+                            snapshot->metadata.index, snapshot->metadata.term);
+        persist(snapshot);
     }
-    m_logs.append(entries);
-    return true;
 }
 
+std::optional<Entry> RaftNode::propose(const std::string& data) {
+    std::unique_lock<MutexType> lock(m_mutex);
+    return Propose(data);
+}
+
+std::optional<Entry> RaftNode::Propose(const std::string &data) {
+    if (m_state != Leader) {
+        SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] no leader at term {}; dropping proposal", m_id, m_currentTerm);
+        return std::nullopt;
+    }
+    Entry ent;
+    ent.term = m_currentTerm;
+    ent.index = m_logs.lastIndex() + 1;
+    ent.data = data;
+
+    m_logs.append(ent);
+    broadcastHeartbeat();
+    SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] receives a new log entry[{}] to replicate in term {}", m_id, data, m_currentTerm);
+    return ent;
+}
 
 }

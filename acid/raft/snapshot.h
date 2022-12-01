@@ -34,17 +34,17 @@ struct SnapshotMetadata {
 struct Snapshot {
     using ptr = std::shared_ptr<Snapshot>;
     // 使用者某一时刻的全量序列化后的数据
-    std::string data;
     SnapshotMetadata metadata;
+    std::string data;
     bool empty() const {
         return metadata.index == 0;
     }
     friend rpc::Serializer& operator<<(rpc::Serializer& s, const Snapshot& snap) {
-        s << snap.data << snap.metadata;
+        s << snap.metadata << snap.data;
         return s;
     }
     friend rpc::Serializer& operator>>(rpc::Serializer& s, Snapshot& snap) {
-        s >> snap.data >> snap.metadata;
+        s >> snap.metadata >> snap.data;
         return s;
     }
 };
@@ -59,7 +59,12 @@ public:
     * @brief 对外暴露的接口，存储并持久化一个snapshot
     * @return bool 是否成功存储
     */
-    bool saveSnap(Snapshot::ptr snapshot);
+    bool saveSnap(const Snapshot::ptr& snapshot);
+    /**
+    * @brief 对外暴露的接口，存储并持久化一个snapshot
+    * @return bool 是否成功存储
+    */
+    bool saveSnap(const Snapshot& snapshot);
     /**
     * @brief 加载最新的一个快照
     * @return Snapshot::ptr 如果没有快照则返回nullptr
@@ -80,7 +85,7 @@ private:
     /**
     * @brief 将snapshot序列化后持久化到磁盘
     */
-    bool save(Snapshot::ptr snapshot);
+    bool save(const Snapshot& snapshot);
     /**
     * @brief 反序列化成 snapshot
     */

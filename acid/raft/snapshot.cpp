@@ -14,19 +14,25 @@ Snapshotter::Snapshotter(const std::filesystem::path& dir,
                          const std::string& snap_suffix /* = ".snap"*/)
         : m_dir(dir)
         , m_snap_suffix(snap_suffix) {
-    if (dir.empty()) {
+    if (m_dir.empty()) {
         SPDLOG_LOGGER_WARN(g_logger, "snapshot path is empty");
-    }
-    if (!std::filesystem::exists(m_dir)) {
-        SPDLOG_LOGGER_WARN(g_logger, "snapshot path: {} is not exists", m_dir.string());
-    }
-    if (!std::filesystem::is_directory(m_dir)) {
+    } else if (!std::filesystem::exists(m_dir)) {
+        SPDLOG_LOGGER_WARN(g_logger, "snapshot path: {} is not exists, create directory", m_dir.string());
+        std::filesystem::create_directories(m_dir);
+    } else if (!std::filesystem::is_directory(m_dir)) {
         SPDLOG_LOGGER_WARN(g_logger, "snapshot path: {} is not a directory", m_dir.string());
     }
 }
 
-bool Snapshotter::saveSnap(Snapshot::ptr snapshot) {
+bool Snapshotter::saveSnap(const Snapshot::ptr& snapshot) {
     if (!snapshot || snapshot->empty()) {
+        return false;
+    }
+    return save(*snapshot);
+}
+
+bool Snapshotter::saveSnap(const Snapshot& snapshot) {
+    if (snapshot.empty()) {
         return false;
     }
     return save(snapshot);
@@ -78,16 +84,19 @@ std::vector<std::string> Snapshotter::checkSffix(const std::vector<std::string>&
     return snaps;
 }
 
-bool Snapshotter::save(Snapshot::ptr snapshot) {
+bool Snapshotter::save(const Snapshot& snapshot) {
     // 快照名格式 %016ld-%016ld%s
     std::unique_ptr<char[]> buff = std::make_unique<char[]>(16 + 1 + 16 + m_snap_suffix.size() + 1);
-    sprintf(&buff[0],"%016ld-%016ld%s", snapshot->metadata.index, snapshot->metadata.index, m_snap_suffix.c_str());
+    sprintf(&buff[0],"%016ld-%016ld%s", snapshot.metadata.term, snapshot.metadata.index, m_snap_suffix.c_str());
     std::string filename = m_dir / (&buff[0]);
 
     int fd = open(filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd < 0) {
+        return false;
+    }
 
     rpc::Serializer ser;
-    ser << (*snapshot);
+    ser << snapshot;
     ser.reset();
 
     std::string data = ser.toString();

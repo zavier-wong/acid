@@ -9,6 +9,7 @@
 #include "../rpc/rpc_server.h"
 #include "raft_log.h"
 #include "raft_peer.h"
+#include "snapshot.h"
 
 namespace acid::raft {
 using namespace acid::rpc;
@@ -21,6 +22,20 @@ enum RaftState {
     Leader      // 领导者
 };
 
+struct ApplyMsg {
+    enum MsgType {
+        ENTRY,      // 日志
+        SNAPSHOT,   // 快照
+    };
+    ApplyMsg() = default;
+    explicit ApplyMsg(const Entry& ent) : type(ENTRY), data(ent.data), index(ent.index), term(ent.term) {}
+    explicit ApplyMsg(const Snapshot& snap) : type(SNAPSHOT), data(snap.data), index(snap.metadata.index), term(snap.metadata.term) {}
+    MsgType type = ENTRY;
+    std::string data{};
+    int64_t index{};
+    int64_t term{};
+};
+
 /**
  * @brief Raft 节点，处理 rpc 请求，并改变状态，通过 RaftPeer 调用远端 Raft 节点
  */
@@ -29,11 +44,18 @@ public:
     using ptr = std::shared_ptr<RaftNode>;
     using MutexType = co::co_mutex;
 
-    RaftNode(int64_t id, RaftLog rl, co::co_chan<Entry> applyChan, co::co_chan<std::string> proposeChan,
-             co::Scheduler* worker = &co_sched, co::Scheduler* accept_worker = &co_sched);
+    /**
+     * Create a Raft server
+     * @param id 当前 raft 节点在集群内的唯一标识
+     * @param persister raft 保存其持久状态的地方，并且从保存的状态初始化当前节点
+     * @param applyChan 是发送达成共识的日志的 channel
+     */
+    RaftNode(int64_t id, Persister::ptr persister, co::co_chan<ApplyMsg> applyChan);
 
     ~RaftNode();
-
+    /**
+     * @brief 启动 raft
+     */
     void start() override;
     /**
      * @brief 增加 raft 节点
@@ -41,32 +63,43 @@ public:
      * @param[in] address raft 节点地址
      */
     void addPeer(int64_t id, Address::ptr address);
-
+    /**
+     * @brief 发起一条消息
+     * @return 如果该节点不是 Leader 返回 std::nullopt
+     */
+    std::optional<Entry> propose(const std::string& data);
     /**
      * @brief 处理远端 raft 节点的投票请求
-     * @details 如果term < currentTerm返回 false （5.2 节）
-     * 如果 votedFor 为空或者为 candidateId，并且候选人的日志至少和自己一样新，那么就投票给他（5.2 节，5.4 节）
      */
     RequestVoteReply handleRequestVote(RequestVoteArgs request);
-
+    /**
+     * @brief 处理远端 raft 节点的日志追加请求
+     */
     AppendEntriesReply handleAppendEntries(AppendEntriesArgs request);
-
+    /**
+     * @brief 处理远端 raft 节点的快照安装请求
+     */
     InstallSnapshotReply handleInstallSnapshot(InstallSnapshotArgs arg);
-
+    /**
+     * @brief 获取节点 id
+     */
     int64_t getNodeId() const { return m_id;}
-
+    /**
+     * @brief 持久化，外部调用，有加锁
+     * @param index 从该 idex 之前的日志都去掉
+     * @param snap 快照数据
+     */
+    void persistStateAndSnapshot(int64_t index, const std::string& snap);
     /**
      * @brief 输出 Raft 节点状态
      */
     std::string toString();
     /**
      * @brief 获取心跳超时时间
-     * @return 返回心跳超时时间
      */
     static uint64_t GetStableHeartbeatTimeout();
     /**
      * @brief 获取随机选举时间
-     * @return 返回选举时间
      */
     static uint64_t GetRandomizedElectionTimeout();
 private:
@@ -88,26 +121,35 @@ private:
      * @brief 重置选举定时器
      */
     void rescheduleElection();
-
+    /**
+     * @brief 重置心跳定时器
+     */
     void resetHeartbeatTimer();
-
+    /**
+     * @brief 对一个节点发起复制请求
+     * @param peer 对方节点 id
+     */
     void replicateOneRound(int64_t peer);
-
-    bool needReplicating(int64_t peer);
-
-    void replicator(int64_t peer);
-    // 用来往 applyCh 中 push 提交的日志
+    /**
+     * @brief 用来往 applyCh 中 push 提交的日志
+     */
     void applier();
     /**
      * @brief 开始选举，发起异步投票
      */
     void startElection();
-
-    void broadcastHeartbeat(bool isHeartbeat);
-
-    bool appendEntry(Entry& entry);
-
-    bool appendEntry(std::vector<Entry>& entries);
+    /**
+     * @brief 广播心跳
+     */
+    void broadcastHeartbeat();
+    /**
+     * @brief 持久化，内部调用，不加锁
+     */
+    void persist(Snapshot::ptr snap = nullptr);
+    /**
+     * @brief 发起一条消息，不加锁
+     */
+    std::optional<Entry> Propose(const std::string& data);
 
 private:
     MutexType m_mutex;
@@ -129,23 +171,17 @@ private:
     std::map<int64_t, int64_t> m_nextIndex;
     // 对于每一台服务器，已知的已经复制到该服务器的最高日志条目的索引（初始值为0，单调递增）
     std::map<int64_t, int64_t> m_matchIndex;
-    // 用于向replicator协程发送信号以批量复制日志
-    std::map<int64_t, co::co_condition_variable> m_replicatorCond;
     // 选举定时器，超时后节点将转换为候选人发起投票
-    co_timer_id m_electionTimer;
+    CycleTimerTocken m_electionTimer;
     // 心跳定时器，领导者定时发送日志维持心跳，和同步日志
-    co_timer_id m_heartbeatTimer;
+    CycleTimerTocken m_heartbeatTimer;
     // 一次发送的最大日志数量 TODO
     int64_t m_maxLogSize = 1000;
-
+    // 持久化
+    Persister::ptr m_persister;
     co::co_condition_variable m_applyCond;
     // 用来已通过raft达成共识的已提交的提议通知给其它组件的信道。
-    co::co_chan<Entry> m_applyChan;
-    // 接收来自其它组件传入的需要通过raft达成共识的普通提议。
-    co::co_chan<std::string> m_proposeChan;
-    // 保存快照的目录路径
-    std::string m_snapDir;
-
+    co::co_chan<ApplyMsg> m_applyChan;
 };
 
 }
