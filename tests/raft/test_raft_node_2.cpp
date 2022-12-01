@@ -1,5 +1,5 @@
 //
-// Created by zavier on 2022/6/29.
+// Created by zavier on 2022/11/30.
 //
 
 #include "acid/raft/raft_node.h"
@@ -14,7 +14,7 @@ std::map<int64_t, std::string> peers = {
 };
 
 void Main() {
-    int64_t id = 1;
+    int64_t id = 2;
     Persister::ptr persister = std::make_shared<Persister>(fmt::format("raft-node-{}", id));
     co::co_chan<ApplyMsg> applyChan(10);
     RaftNode node(id, persister, applyChan);
