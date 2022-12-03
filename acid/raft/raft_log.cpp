@@ -41,7 +41,7 @@ int64_t RaftLog::maybeAppend(int64_t prevLogIndex, int64_t prevLogTerm, int64_t 
                 exit(EXIT_FAILURE);
             } else {
                 int64_t off = prevLogIndex + 1;
-                if (conflict_index - off > entries.size()) {
+                if (conflict_index - off > (int)entries.size()) {
                     SPDLOG_LOGGER_CRITICAL(g_logger, "index {}, is out of range [{}]", conflict_index - off, entries.size());
                     exit(EXIT_FAILURE);
                 }
@@ -125,6 +125,11 @@ std::vector<Entry> RaftLog::nextEntries() {
 bool RaftLog::hasNextEntries() {
     int64_t off = std::max(m_applied + 1, firstIndex());
     return m_committed + 1 > off;
+}
+
+void RaftLog::clearEntries(int64_t lastSnapshotIndex, int64_t lastSnapshotTerm) {
+    m_entries.clear();
+    m_entries.push_back({.index = lastSnapshotIndex, .term = lastSnapshotTerm});
 }
 
 int64_t RaftLog::firstIndex() {
@@ -262,8 +267,6 @@ Snapshot::ptr RaftLog::createSnapshot(int64_t index, const std::string &data) {
     snap->data = data;
     SPDLOG_LOGGER_DEBUG(g_logger, "log [{}] starts to restore snapshot [index: {}, term: {}]",
                            toString(), snap->metadata.index, snap->metadata.term);
-    m_committed = index;
-    compact(index);
     return snap;
 }
 
@@ -278,19 +281,8 @@ bool RaftLog::compact(int64_t compactIndex) {
     }
     int64_t index = compactIndex - offset;
     m_entries.erase(m_entries.begin(), m_entries.begin() + index);
+    m_entries[0].data = "";
     return true;
 }
 
-//int64_t RaftLog::zeroTermOnErrCompacted(int64_t term) {
-//    if (term >= 0) {
-//        return term;
-//    }
-//    if (term == StorageError::Compacted) {
-//        return 0;
-//    }
-//    SPDLOG_LOGGER_CRITICAL(g_logger, "unexpected error {}", term);
-//    return 0;
-//}
-
-// RaftLog::
 }

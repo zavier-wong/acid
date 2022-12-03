@@ -55,6 +55,10 @@ public:
      */
     bool hasNextEntries();
     /**
+     * @brief 清除日志
+     */
+    void clearEntries(int64_t lastSnapshotIndex = 0, int64_t lastSnapshotTerm = 0);
+    /**
      * @brief 获取第一个索引
      * @note 你可能会问第一个日志索引不应该是0么，但是raft会周期的做快照，快照之前的日志就没用了，所以第一个日志索引不一定是0
      */
