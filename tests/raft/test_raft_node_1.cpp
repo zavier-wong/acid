@@ -16,7 +16,7 @@ std::map<int64_t, std::string> peers = {
 void Main() {
     int64_t id = 1;
     Persister::ptr persister = std::make_shared<Persister>(fmt::format("raft-node-{}", id));
-    co::co_chan<ApplyMsg> applyChan(10);
+    co::co_chan<ApplyMsg> applyChan;
     RaftNode node(id, persister, applyChan);
     Address::ptr addr = Address::LookupAny(peers[node.getNodeId()]);
     node.bind(addr);
@@ -27,17 +27,31 @@ void Main() {
         // 添加节点
         node.addPeer(peer.first, address);
     }
+
     go [&node, id] {
         for (int i = 0; ; ++i) {
-            node.propose(fmt::format("Node[{}] propose {}", id, i));
+            if (node.isLeader()) {
+                node.propose(fmt::format("Node[{}] propose {}", id, i));
+            }
             sleep(5);
         }
     };
-    go [applyChan] {
+    go [applyChan, id, &node] {
         // 接收raft达成共识的日志
         ApplyMsg msg;
         while (applyChan.pop(msg)) {
-            SPDLOG_INFO(msg.data);
+            if (msg.type == ApplyMsg::ENTRY && msg.index % 10 == 0 && node.isLeader()) {
+                // 十条日志做一次快照
+                node.persistStateAndSnapshot(msg.index, fmt::format("Node[{}] create snapshot, index {}", id, msg.index));
+            }
+            switch (msg.type) {
+                case ApplyMsg::ENTRY:
+                    SPDLOG_INFO("entry-> index: {}, term: {}, data: {}", msg.index, msg.term, msg.data);
+                    break;
+                case ApplyMsg::SNAPSHOT:
+                    SPDLOG_INFO("snapshot-> index: {}, term: {}, data: {}", msg.index, msg.term, msg.data);
+                    break;
+            }
         }
     };
     // 启动raft节点
