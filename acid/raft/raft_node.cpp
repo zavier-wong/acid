@@ -161,11 +161,10 @@ void RaftNode::applier() {
         lock.lock();
         SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] applies entries {}-{} in term {}", m_id, m_logs.applied(), last_commit, m_currentTerm);
         // 1. push applyCh 结束之后更新 lastApplied 的时候一定得用之前的 commitIndex ，因为很可能在 push channel 期间发生了改变。
-        // 2. 防止与 installSnapshot 并发导致 lastApplied 回退：需要注意到，applier 协程在 push channel 时，中间可能夹杂有 snapshot 也在 push channel。
-        // 如果该 snapshot 有效，那么在 CondInstallSnapshot 函数里上层状态机和 raft 模块就会原子性的发生替换，即上层状态机更新为 snapshot 的状态，
+        // 2. 防止与 installSnapshot 并发导致 lastApplied 回退：需要注意到，applier 协程在 push channel 时，中间可能夹杂有 snapshot
+        // 也在 push channel。 如果该 snapshot 有效，那么上层状态机和 raft 模块就会原子性的发生替换，即上层状态机更新为 snapshot 的状态，
         // raft 模块更新 log, commitIndex, lastApplied 等等，此时如果这个 snapshot 之后还有一批旧的 entry 在 push channel，
         // 那上层服务需要能够知道这些 entry 已经过时，不能再 apply，同时 applier 这里也应该加一个 Max 自身的函数来防止 lastApplied 出现回退。
-        // TODO
         m_logs.appliedTo(std::max(m_logs.applied(), last_commit));
     }
 }
@@ -196,7 +195,7 @@ void RaftNode::replicateOneRound(int64_t peer) {
             return;
         }
 
-        SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] [firstIndex: {}, commit: {}] sent snapshot[index: {}, term: {}] to Node[{}]",
+        SPDLOG_LOGGER_TRACE(g_logger, "Node[{}] [firstIndex: {}, commit: {}] sent snapshot[index: {}, term: {}] to Node[{}]",
                             m_id, m_logs.firstIndex(), m_logs.committed(), snapshot->metadata.index, snapshot->metadata.index, peer);
 
         request.snapshot = std::move(*snapshot);
@@ -214,9 +213,19 @@ void RaftNode::replicateOneRound(int64_t peer) {
         SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] receives InstallSnapshotReply {} from Node[{}] after sending InstallSnapshotArgs {} in term {}",
                             m_id, reply->toString(), peer, request.toString(), m_currentTerm);
 
+        if (m_currentTerm != request.term || m_state != Leader) {
+            return;
+        }
         // 如果因为网络原因集群选举出新的leader则自己变成follower
         if (reply->term > m_currentTerm) {
             becomeFollower(reply->term, reply->leaderId);
+            return;
+        }
+        if (request.snapshot.metadata.index > m_matchIndex[peer]) {
+            m_matchIndex[peer] = request.snapshot.metadata.index;
+        }
+        if (request.snapshot.metadata.index > m_nextIndex[peer]) {
+            m_nextIndex[peer] = request.snapshot.metadata.index + 1;
         }
     } else {
         auto ents = m_logs.entries(m_nextIndex[peer], m_maxLogSize);
@@ -255,7 +264,7 @@ void RaftNode::replicateOneRound(int64_t peer) {
         }
         // 日志追加失败，根据 nextIndex 更新 m_nextIndex 和 m_matchIndex
         if (!reply->success) {
-            if (reply->nextIndex && reply->nextIndex > m_logs.lastSnapshotIndex()) {
+            if (reply->nextIndex) {
                 m_nextIndex[peer] = reply->nextIndex;
                 m_matchIndex[peer] = std::min(m_matchIndex[peer], reply->nextIndex - 1);
             }
@@ -418,7 +427,9 @@ InstallSnapshotReply RaftNode::handleInstallSnapshot(InstallSnapshotArgs request
     if (request.term > m_currentTerm) {
         becomeFollower(request.term, request.leaderId);
     }
+
     rescheduleElection();
+    reply.leaderId = m_leaderId;
 
     const int64_t snap_index = request.snapshot.metadata.index;
     const int64_t snap_term = request.snapshot.metadata.term;
@@ -439,7 +450,15 @@ InstallSnapshotReply RaftNode::handleInstallSnapshot(InstallSnapshotArgs request
 
     SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] starts to restore snapshot [index: {}, term: {}]", m_id, snap_index, snap_term);
 
-    //m_logs.restore(std::make_shared<Snapshot>(request.snapshot));
+
+    if (request.snapshot.metadata.index > m_logs.lastIndex()) {
+        // 如果自己的日志太旧了就全部清除了
+        m_logs.clearEntries(request.snapshot.metadata.index, request.snapshot.metadata.term);
+    } else {
+        // 压缩一部分日志
+        m_logs.compact(request.snapshot.metadata.index);
+    }
+
     go [snap = request.snapshot, this] {
         m_applyChan << ApplyMsg{snap};
     };
@@ -453,6 +472,11 @@ void RaftNode::addPeer(int64_t id, Address::ptr address) {
     m_nextIndex[id] = 0;
     m_matchIndex[id] = 0;
     SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] add peer[{}], address is {}", m_id, id, address->toString());
+}
+
+bool RaftNode::isLeader() {
+    std::unique_lock<MutexType> lock(m_mutex);
+    return m_state == Leader;
 }
 
 std::string RaftNode::toString() {
@@ -547,7 +571,7 @@ uint64_t RaftNode::GetRandomizedElectionTimeout() {
 }
 
 void RaftNode::persist(Snapshot::ptr snap) {
-    HardState hs;
+    HardState hs{};
     hs.vote = m_votedFor;
     hs.term = m_currentTerm;
     hs.commit = m_logs.committed();
@@ -558,6 +582,8 @@ void RaftNode::persistStateAndSnapshot(int64_t index, const std::string& snap) {
     std::unique_lock<MutexType> lock(m_mutex);
     auto snapshot = m_logs.createSnapshot(index, snap);
     if (snapshot) {
+        // 压缩日志
+        m_logs.compact(snapshot->metadata.index);
         SPDLOG_LOGGER_DEBUG(g_logger, "starts to restore snapshot [index: {}, term: {}]",
                             snapshot->metadata.index, snapshot->metadata.term);
         persist(snapshot);
