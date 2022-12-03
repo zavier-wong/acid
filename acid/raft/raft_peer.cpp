@@ -68,6 +68,9 @@ std::optional<RequestVoteReply> RaftPeer::requestVote(const RequestVoteArgs& arg
     if (result.getCode() == rpc::RpcState::RPC_SUCCESS) {
         return result.getVal();
     }
+    if (result.getCode() == rpc::RpcState::RPC_CLOSED) {
+        m_client->close();
+    }
     SPDLOG_LOGGER_DEBUG(g_logger, "Rpc call Node[{}] method [ RaftNode::handleRequestVote ] failed, code is {}, msg is {}, RequestVoteArgs is {}",
                       m_id, result.getCode(), result.getMsg(), arg.toString());
     return std::nullopt;
@@ -81,6 +84,9 @@ std::optional<AppendEntriesReply> RaftPeer::appendEntries(const AppendEntriesArg
     if (result.getCode() == rpc::RpcState::RPC_SUCCESS) {
         return result.getVal();
     }
+    if (result.getCode() == rpc::RpcState::RPC_CLOSED) {
+        m_client->close();
+    }
     SPDLOG_LOGGER_DEBUG(g_logger, "Rpc call Node[{}] method [ RaftNode::handleAppendEntries ] failed, code is {}, msg is {}",
                         m_id, result.getCode(), result.getMsg());
     return std::nullopt;
@@ -93,6 +99,9 @@ std::optional<InstallSnapshotReply> RaftPeer::installSnapshot(const InstallSnaps
     rpc::Result<InstallSnapshotReply> result = m_client->call<InstallSnapshotReply>("RaftNode::handleInstallSnapshot", arg);
     if (result.getCode() == rpc::RpcState::RPC_SUCCESS) {
         return result.getVal();
+    }
+    if (result.getCode() == rpc::RpcState::RPC_CLOSED) {
+        m_client->close();
     }
     SPDLOG_LOGGER_DEBUG(g_logger, "Rpc call Node[{}] method [ RaftNode::handleInstallSnapshot ] failed, code is {}, msg is {}, InstallSnapshotArgs is {}",
                       m_id, result.getCode(), result.getMsg(), arg.toString());
