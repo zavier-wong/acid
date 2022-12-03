@@ -63,6 +63,8 @@ public:
      * @param[in] address raft 节点地址
      */
     void addPeer(int64_t id, Address::ptr address);
+
+    bool isLeader();
     /**
      * @brief 发起一条消息
      * @return 如果该节点不是 Leader 返回 std::nullopt
