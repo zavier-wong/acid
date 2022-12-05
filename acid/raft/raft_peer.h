@@ -10,6 +10,11 @@
 namespace acid::raft {
 using namespace acid::rpc;
 
+// constant rpc method name
+inline const std::string REQUEST_VOTE = "RaftNode::handleRequestVote";
+inline const std::string APPEND_ENTRIES = "RaftNode::handleAppendEntries";
+inline const std::string INSTALL_SNAPSHOT = "RaftNode::handleInstallSnapshot";
+
 /**
  * @brief RequestVote rpc 调用的参数
  */

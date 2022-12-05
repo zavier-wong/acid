@@ -60,6 +60,17 @@ Snapshot::ptr Persister::loadSnapshot() {
     return m_shotter.loadSnap();
 }
 
+int64_t Persister::getRaftStateSize() {
+    std::unique_lock<co::co_mutex> lock(m_mutex);
+    std::ifstream in(m_path / m_name, std::ios_base::in);
+    if (!in.is_open()) {
+        return -1;
+    }
+    in.seekg(0, in.end);
+    auto fos = in.tellg();
+    return fos;
+}
+
 bool Persister::persist(const HardState &hs, const std::vector <Entry> &ents, const Snapshot::ptr snapshot) {
     std::unique_lock<co::co_mutex> lock(m_mutex);
     int fd = open((m_path / m_name).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);

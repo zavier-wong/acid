@@ -2,6 +2,8 @@
 // Created by zavier on 2022/7/19.
 //
 
+#include <utility>
+
 #include "../common/config.h"
 #include "../raft/raft_peer.h"
 
@@ -17,8 +19,9 @@ static ConfigVar<uint32_t>::ptr g_connect_retry =
 static uint64_t s_rpc_timeout;
 static uint32_t s_connect_retry;
 
-struct _RaftPeerIniter{
-    _RaftPeerIniter(){
+namespace {
+struct RaftPeerIniter{
+    RaftPeerIniter(){
         s_rpc_timeout = g_rpc_timeout->getValue();
         g_rpc_timeout->addListener([](const uint64_t& old_val, const uint64_t& new_val){
             SPDLOG_LOGGER_INFO(g_logger, "raft rpc timeout changed from {} to {}", old_val, new_val);
@@ -33,11 +36,13 @@ struct _RaftPeerIniter{
 };
 
 // 初始化配置
-static _RaftPeerIniter s_initer;
+[[maybe_unused]]
+static RaftPeerIniter s_initer;
+}
+
 
 RaftPeer::RaftPeer(int64_t id, Address::ptr address)
-        : m_id(id), m_address(address) {
-    // 关闭 RpcClient 自带的心跳
+        : m_id(id), m_address(std::move(address)) {
     m_client = std::make_shared<rpc::RpcClient>();
     // 关闭心跳
     m_client->setHeartbeat(false);
@@ -64,15 +69,15 @@ std::optional<RequestVoteReply> RaftPeer::requestVote(const RequestVoteArgs& arg
     if (!connect()) {
         return std::nullopt;
     }
-    rpc::Result<RequestVoteReply> result = m_client->call<RequestVoteReply>("RaftNode::handleRequestVote", arg);
+    rpc::Result<RequestVoteReply> result = m_client->call<RequestVoteReply>(REQUEST_VOTE, arg);
     if (result.getCode() == rpc::RpcState::RPC_SUCCESS) {
         return result.getVal();
     }
     if (result.getCode() == rpc::RpcState::RPC_CLOSED) {
         m_client->close();
     }
-    SPDLOG_LOGGER_DEBUG(g_logger, "Rpc call Node[{}] method [ RaftNode::handleRequestVote ] failed, code is {}, msg is {}, RequestVoteArgs is {}",
-                      m_id, result.getCode(), result.getMsg(), arg.toString());
+    SPDLOG_LOGGER_DEBUG(g_logger, "Rpc call Node[{}] method [ {} ] failed, code is {}, msg is {}, RequestVoteArgs is {}",
+                      m_id, REQUEST_VOTE, result.getCode(), result.getMsg(), arg.toString());
     return std::nullopt;
 }
 
@@ -80,15 +85,15 @@ std::optional<AppendEntriesReply> RaftPeer::appendEntries(const AppendEntriesArg
     if (!connect()) {
         return std::nullopt;
     }
-    rpc::Result<AppendEntriesReply> result = m_client->call<AppendEntriesReply>("RaftNode::handleAppendEntries", arg);
+    rpc::Result<AppendEntriesReply> result = m_client->call<AppendEntriesReply>(APPEND_ENTRIES, arg);
     if (result.getCode() == rpc::RpcState::RPC_SUCCESS) {
         return result.getVal();
     }
     if (result.getCode() == rpc::RpcState::RPC_CLOSED) {
         m_client->close();
     }
-    SPDLOG_LOGGER_DEBUG(g_logger, "Rpc call Node[{}] method [ RaftNode::handleAppendEntries ] failed, code is {}, msg is {}",
-                        m_id, result.getCode(), result.getMsg());
+    SPDLOG_LOGGER_DEBUG(g_logger, "Rpc call Node[{}] method [ {} ] failed, code is {}, msg is {}",
+                        m_id, APPEND_ENTRIES, result.getCode(), result.getMsg());
     return std::nullopt;
 }
 
@@ -96,15 +101,15 @@ std::optional<InstallSnapshotReply> RaftPeer::installSnapshot(const InstallSnaps
     if (!connect()) {
         return std::nullopt;
     }
-    rpc::Result<InstallSnapshotReply> result = m_client->call<InstallSnapshotReply>("RaftNode::handleInstallSnapshot", arg);
+    rpc::Result<InstallSnapshotReply> result = m_client->call<InstallSnapshotReply>(INSTALL_SNAPSHOT, arg);
     if (result.getCode() == rpc::RpcState::RPC_SUCCESS) {
         return result.getVal();
     }
     if (result.getCode() == rpc::RpcState::RPC_CLOSED) {
         m_client->close();
     }
-    SPDLOG_LOGGER_DEBUG(g_logger, "Rpc call Node[{}] method [ RaftNode::handleInstallSnapshot ] failed, code is {}, msg is {}, InstallSnapshotArgs is {}",
-                      m_id, result.getCode(), result.getMsg(), arg.toString());
+    SPDLOG_LOGGER_DEBUG(g_logger, "Rpc call Node[{}] method [ {} ] failed, code is {}, msg is {}, InstallSnapshotArgs is {}",
+                      m_id, INSTALL_SNAPSHOT, result.getCode(), result.getMsg(), arg.toString());
     return std::nullopt;
 }
 

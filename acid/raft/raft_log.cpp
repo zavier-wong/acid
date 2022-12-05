@@ -26,7 +26,6 @@ RaftLog::RaftLog(Persister::ptr persister, int64_t maxNextEntsSize /* = NO_LIMIT
     }
 
     // 初始化为最后一次日志压缩的commit和apply
-    // m_unstable.offset = lastIndex() + 1;
     m_maxNextEntriesSize = maxNextEntsSize;
 }
 
@@ -190,12 +189,12 @@ int64_t RaftLog::term(int64_t index) {
     return m_entries[index - offset].term;
 }
 
-std::vector<Entry> RaftLog::entries(int64_t index, int64_t maxSize) {
+std::vector<Entry> RaftLog::entries(int64_t index) {
     // 发送心跳
     if (index > lastIndex()) {
         return {};
     }
-    return slice(index, lastIndex() + 1, maxSize);
+    return slice(index, lastIndex() + 1, m_maxNextEntriesSize);
 
 }
 

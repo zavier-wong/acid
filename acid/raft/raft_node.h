@@ -34,6 +34,26 @@ struct ApplyMsg {
     std::string data{};
     int64_t index{};
     int64_t term{};
+
+    template<class T>
+    T as() {
+        T t;
+        Serializer s(data);
+        s >> t;
+        return t;
+    }
+
+    std::string toString() const {
+        std::string str;
+        std::string t;
+        switch (type) {
+            case ENTRY: t = "Entry"; break;
+            case SNAPSHOT: t = "Snapshot"; break;
+            default: t = "Unexpect";
+        }
+        str = fmt::format("type: {}, index: {}, term: {}, data size: {}", t, index, term, data.size());
+        return str;
+    }
 };
 
 /**
@@ -58,6 +78,10 @@ public:
      */
     void start() override;
     /**
+     * @brief 关闭 raft
+     */
+    void stop() override;
+    /**
      * @brief 增加 raft 节点
      * @param[in] id raft 节点id
      * @param[in] address raft 节点地址
@@ -66,10 +90,28 @@ public:
 
     bool isLeader();
     /**
+     * @brief 获取 raft 节点状态
+     * @return currentTerm 任期，isLeader 是否为 leader
+     */
+    std::pair<int64_t, bool> getState();
+    /**
+     * @brief 获取 leader id
+     */
+    int64_t getLeaderId() const { return m_leaderId;}
+    /**
      * @brief 发起一条消息
      * @return 如果该节点不是 Leader 返回 std::nullopt
      */
     std::optional<Entry> propose(const std::string& data);
+
+    template<typename T>
+    std::optional<Entry> propose(const T& data) {
+        std::unique_lock<MutexType> lock(m_mutex);
+        Serializer s;
+        s << data;
+        s.reset();
+        return Propose(s.toString());
+    }
     /**
      * @brief 处理远端 raft 节点的投票请求
      */
@@ -87,11 +129,16 @@ public:
      */
     int64_t getNodeId() const { return m_id;}
     /**
-     * @brief 持久化，外部调用，有加锁
+     * @brief 持久化，有加锁
      * @param index 从该 idex 之前的日志都去掉
      * @param snap 快照数据
      */
     void persistStateAndSnapshot(int64_t index, const std::string& snap);
+    /**
+     * @brief 持久化，有加锁
+     * @param snap 快照数据
+     */
+    void persistSnapshot(Snapshot::ptr snap);
     /**
      * @brief 输出 Raft 节点状态
      */
@@ -177,8 +224,6 @@ private:
     CycleTimerTocken m_electionTimer;
     // 心跳定时器，领导者定时发送日志维持心跳，和同步日志
     CycleTimerTocken m_heartbeatTimer;
-    // 一次发送的最大日志数量 TODO
-    int64_t m_maxLogSize = 1000;
     // 持久化
     Persister::ptr m_persister;
     co::co_condition_variable m_applyCond;

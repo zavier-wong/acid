@@ -92,9 +92,9 @@ public:
      */
     int64_t term(int64_t index);
     /**
-     * @brief 获取[index，lastIndex()]的所有日志，但是日志总量限制在maxsize
+     * @brief 获取[index，lastIndex()]的所有日志，但是日志总量限制在 m_maxNextEntriesSize
      */
-    std::vector<Entry> entries(int64_t index, int64_t maxSize);
+    std::vector<Entry> entries(int64_t index);
     /**
      * @brief 获取所有日志
      */

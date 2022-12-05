@@ -51,26 +51,33 @@ static _RaftNodeIniter s_initer;
 
 RaftNode::RaftNode(int64_t id, Persister::ptr persister, co::co_chan<ApplyMsg> applyChan)
         : m_id(id)
-        , m_logs(persister)
+        , m_logs(persister, 1000)
         , m_persister(persister)
         , m_applyChan(std::move(applyChan)) {
     rpc::RpcServer::setName("Raft-Node[" + std::to_string(id) + "]");
     // 注册服务 RequestVote
-    registerMethod("RaftNode::handleRequestVote",[this](RequestVoteArgs args) {
+    registerMethod(REQUEST_VOTE,[this](RequestVoteArgs args) {
         return handleRequestVote(std::move(args));
     });
     // 注册服务 AppendEntries
-    registerMethod("RaftNode::handleAppendEntries", [this](AppendEntriesArgs args) {
+    registerMethod(APPEND_ENTRIES, [this](AppendEntriesArgs args) {
         return handleAppendEntries(std::move(args));
     });
     // 注册服务 InstallSnapshot
-    registerMethod("RaftNode::handleInstallSnapshot", [this](InstallSnapshotArgs args) {
+    registerMethod(INSTALL_SNAPSHOT, [this](InstallSnapshotArgs args) {
         return handleInstallSnapshot(std::move(args));
     });
 }
 
 RaftNode::~RaftNode() {
+    stop();
+}
+
+void RaftNode::stop() {
     std::unique_lock<MutexType> lock(m_mutex);
+    if (isStop()) {
+        return;
+    }
     m_applyChan.close();
     m_heartbeatTimer.stop();
     m_electionTimer.stop();
@@ -228,7 +235,7 @@ void RaftNode::replicateOneRound(int64_t peer) {
             m_nextIndex[peer] = request.snapshot.metadata.index + 1;
         }
     } else {
-        auto ents = m_logs.entries(m_nextIndex[peer], m_maxLogSize);
+        auto ents = m_logs.entries(m_nextIndex[peer]);
         AppendEntriesArgs request{};
         request.term = m_currentTerm;
         request.leaderId = m_id;
@@ -378,6 +385,11 @@ AppendEntriesReply RaftNode::handleAppendEntries(AppendEntriesArgs request) {
                 (request.term == m_currentTerm && m_state == RaftState::Candidate)) {
         becomeFollower(request.term, request.leaderId);
     }
+
+    if (m_leaderId < 0) {
+        m_leaderId = request.leaderId;
+    }
+
     // 自己为同一任期内的follower，更新选举定时器就行
     rescheduleElection();
 
@@ -477,6 +489,11 @@ void RaftNode::addPeer(int64_t id, Address::ptr address) {
 bool RaftNode::isLeader() {
     std::unique_lock<MutexType> lock(m_mutex);
     return m_state == Leader;
+}
+
+std::pair<int64_t, bool> RaftNode::getState() {
+    std::unique_lock<MutexType> lock(m_mutex);
+    return {m_currentTerm, m_state == Leader};
 }
 
 std::string RaftNode::toString() {
@@ -590,6 +607,17 @@ void RaftNode::persistStateAndSnapshot(int64_t index, const std::string& snap) {
     }
 }
 
+void RaftNode::persistSnapshot(Snapshot::ptr snapshot) {
+    std::unique_lock<MutexType> lock(m_mutex);
+    if (snapshot) {
+        // 压缩日志
+        m_logs.compact(snapshot->metadata.index);
+        SPDLOG_LOGGER_DEBUG(g_logger, "starts to restore snapshot [index: {}, term: {}]",
+                            snapshot->metadata.index, snapshot->metadata.term);
+        persist(snapshot);
+    }
+}
+
 std::optional<Entry> RaftNode::propose(const std::string& data) {
     std::unique_lock<MutexType> lock(m_mutex);
     return Propose(data);
@@ -607,7 +635,7 @@ std::optional<Entry> RaftNode::Propose(const std::string &data) {
 
     m_logs.append(ent);
     broadcastHeartbeat();
-    SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] receives a new log entry[{}] to replicate in term {}", m_id, data, m_currentTerm);
+    SPDLOG_LOGGER_DEBUG(g_logger, "Node[{}] receives a new log entry[index: {}, term: {}] to replicate in term {}", m_id, ent.index, ent.term, m_currentTerm);
     return ent;
 }
 

@@ -54,6 +54,10 @@ public:
      */
     Snapshot::ptr loadSnapshot();
     /**
+     * @brief 获取 raft state 的长度
+     */
+    int64_t getRaftStateSize();
+    /**
      * @brief 持久化
      */
     bool persist(const HardState &hs, const std::vector <Entry> &ents, const Snapshot::ptr snapshot = nullptr);
