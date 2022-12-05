@@ -94,6 +94,7 @@ if (BUILD_DYNAMIC)
 endif()
 
 aux_source_directory(${PROJECT_SOURCE_DIR}/acid/raft RAFT_LIST)
+aux_source_directory(${PROJECT_SOURCE_DIR}/acid/kvraft RAFT_LIST)
 
 set(RAFT_TARGET "raft")
 set(RAFT_STATIC_T "raft_static")

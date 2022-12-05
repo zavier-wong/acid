@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project(tests)
 add_subdirectory(http)
+add_subdirectory(kvraft)
 add_subdirectory(raft)
 add_subdirectory(rpc)
 add_subdirectory(test)
