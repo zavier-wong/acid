@@ -3,23 +3,31 @@
 //
 #include "acid/net/socket_stream.h"
 #include "acid/net/tcp_server.h"
+
 using namespace acid;
 
-class MyTcpServer : public TcpServer {
+class EchoServer : public TcpServer {
 public:
     void handleClient(Socket::ptr client) override {
-        SPDLOG_INFO(client->toString());
-        std::string buff;
-        buff.resize(1024);
-        SocketStream::ptr session = std::make_shared<SocketStream>(client);
+        SPDLOG_INFO("handleClient {}", client->toString());
+        ByteArray::ptr buff(new ByteArray);
         while (true) {
-            auto n = session->readFixSize(&buff[0], 5);
-            if (n <= 0) {
-                SPDLOG_WARN("client closed");
-                return;
+            buff->clear();
+            std::vector<iovec> iovs;
+            buff->getWriteBuffers(iovs, 1024);
+            int n = client->recv(&iovs[0], iovs.size());
+            if(n == 0) {
+                SPDLOG_INFO("Client Close {}", client->toString());
+                break;
+            } else if (n < 0){
+                SPDLOG_INFO("Client Error, errno={}, errstr={}", errno, strerror(errno));
+                break;
             }
-            buff[n] = 0;
-            SPDLOG_INFO(buff);
+            buff->setPosition(buff->getPosition() + n);
+            buff->setPosition(0);
+            auto str = buff->toString();
+            SPDLOG_INFO("Client: {}", str);
+            client->send(str.c_str(), str.length());
         }
     }
 };
@@ -27,20 +35,11 @@ public:
 int main(){
     go [] {
         auto addr = Address::LookupAny("0.0.0.0:8080");
-        //auto addr = acid::UnixAddress::ptr(new acid::UnixAddress("/tmp/acid/unix"));
         SPDLOG_INFO(addr->toString());
-        MyTcpServer server;
+        EchoServer server;
         while(!server.bind(addr)){
             sleep(3);
         }
-
-        std::jthread t([&server]{
-            // 10秒后停止server
-            sleep(10);
-            SPDLOG_WARN("server stop after 10s");
-            server.stop();
-            co_sched.Stop();
-        });
         server.start();
     };
     co_sched.Start();
