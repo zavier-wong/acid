@@ -17,7 +17,7 @@ localhost:10003
 
 ## 文档说明
 
-- 每个API都会有三个表格：请求(request)参数，响应(response)参数，返回代码。其中，若响应参数的表格只有none，说明返回的data{}为空。
+- 每个response都有msg参数，其中，只有msg为OK，其他参数才有效
 
 - API 使用 POST 请求，向服务器发送json数据
 
