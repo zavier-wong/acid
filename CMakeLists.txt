@@ -67,7 +67,8 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/acid/common SRC_LIST)
 aux_source_directory(${PROJECT_SOURCE_DIR}/acid/http SRC_LIST)
 aux_source_directory(${PROJECT_SOURCE_DIR}/acid/http/servlets SRC_LIST)
 aux_source_directory(${PROJECT_SOURCE_DIR}/acid/net SRC_LIST)
-#aux_source_directory(${PROJECT_SOURCE_DIR}/acid/raft SRC_LIST)
+aux_source_directory(${PROJECT_SOURCE_DIR}/acid/raft SRC_LIST)
+aux_source_directory(${PROJECT_SOURCE_DIR}/acid/kvraft SRC_LIST)
 aux_source_directory(${PROJECT_SOURCE_DIR}/acid/rpc SRC_LIST)
 
 # 编译的库在 acid/lib 下生成
@@ -92,14 +93,3 @@ if (BUILD_DYNAMIC)
     target_link_libraries("${SHARED_T}" -Wl,--start-group ${LINK_ARGS} -Wl,--end-group)
     install(TARGETS ${SHARED_T} LIBRARY DESTINATION "lib" ARCHIVE DESTINATION "lib")
 endif()
-
-aux_source_directory(${PROJECT_SOURCE_DIR}/acid/raft RAFT_LIST)
-aux_source_directory(${PROJECT_SOURCE_DIR}/acid/kvraft RAFT_LIST)
-
-set(RAFT_TARGET "raft")
-set(RAFT_STATIC_T "raft_static")
-
-# 默认编译静态库
-add_library("${RAFT_STATIC_T}" STATIC ${RAFT_LIST})
-set_target_properties("${RAFT_STATIC_T}" PROPERTIES OUTPUT_NAME "${RAFT_TARGET}")
-target_link_libraries("${RAFT_STATIC_T}" -Wl,--start-group ${LINK_ARGS} -Wl,--end-group)
