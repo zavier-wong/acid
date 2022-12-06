@@ -51,6 +51,7 @@ enum Operation {
     GET,
     PUT,
     APPEND,
+    DELETE,
 };
 
 inline std::string toString(Operation op) {
@@ -59,6 +60,7 @@ inline std::string toString(Operation op) {
         case GET: str = "GET"; break;
         case PUT: str = "PUT"; break;
         case APPEND: str = "APPEND"; break;
+        case DELETE: str = "DELETE"; break;
         default: str = "Unexpect Operation";
     }
     return str;

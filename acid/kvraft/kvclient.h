@@ -20,8 +20,9 @@ public:
     std::string Get(const std::string& key);
     void Put(const std::string& key, const std::string& value);
     void Append(const std::string& key, const std::string& value);
+    bool Delete(const std::string& key);
 private:
-    std::string Command(CommandRequest& request);
+    CommandResponse Command(CommandRequest& request);
     bool connect(int64_t id);
     int64_t nextLeaderId();
     static int64_t GetRandom();

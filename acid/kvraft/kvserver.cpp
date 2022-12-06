@@ -1,12 +1,18 @@
 //
 // Created by zavier on 2022/12/3.
 //
+#include <random>
 #include "kvserver.h"
 #include "../common/config.h"
 
 namespace acid::kvraft {
 using namespace acid;
 static auto g_logger = GetLogInstance();
+static int64_t GetRandom() {
+    static std::default_random_engine engine(acid::GetCurrentMS());
+    static std::uniform_int_distribution<int64_t> dist(0, INT64_MAX);
+    return dist(engine);
+}
 
 KVServer::KVServer(std::map<int64_t, std::string>& servers, int64_t id, Persister::ptr persister, int64_t maxRaftState)
     : m_id(id)
@@ -45,6 +51,26 @@ void KVServer::start() {
 void KVServer::stop() {
     std::unique_lock<MutexType> lock(m_mutex);
     m_raft->stop();
+}
+
+CommandResponse KVServer::Get(const std::string& key) {
+    CommandRequest request{.operation = GET, .key = key, .commandId = GetRandom()};
+    return handleCommand(request);
+}
+
+CommandResponse KVServer::Put(const std::string& key, const std::string& value) {
+    CommandRequest request{.operation = PUT, .key = key, .value = value, .commandId = GetRandom()};
+    return handleCommand(request);
+}
+
+CommandResponse KVServer::Append(const std::string& key, const std::string& value) {
+    CommandRequest request{.operation = APPEND, .key = key, .value = value, .commandId = GetRandom()};
+    return handleCommand(request);
+}
+
+CommandResponse KVServer::Delete(const std::string& key) {
+    CommandRequest request{.operation = DELETE, .key = key, .commandId = GetRandom()};
+    return handleCommand(request);
 }
 
 CommandResponse KVServer::handleCommand(CommandRequest request) {
@@ -178,6 +204,13 @@ CommandResponse KVServer::applyLogToStateMachine(const CommandRequest& request) 
             break;
         case APPEND:
             m_data[request.key] += request.value;
+            break;
+        case DELETE:
+            it = m_data.find(request.key);
+            if (it == m_data.end()) {
+                response.error = NO_KEY;
+            }
+            m_data.erase(it);
             break;
         default:
             SPDLOG_LOGGER_CRITICAL(g_logger, "unexpect operation {}", (int)request.operation);

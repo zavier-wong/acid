@@ -12,7 +12,7 @@ namespace acid::kvraft {
 using namespace acid::raft;
 class KVServer {
 public:
-    using ptr = std::shared_ptr<RaftNode>;
+    using ptr = std::shared_ptr<KVServer>;
     using MutexType = co::co_mutex;
     using KVMap = std::map<std::string, std::string>;
 
@@ -20,12 +20,14 @@ public:
     ~KVServer();
     void start();
     void stop();
-
+    CommandResponse handleCommand(CommandRequest request);
+    CommandResponse Get(const std::string& key);
+    CommandResponse Put(const std::string& key, const std::string& value);
+    CommandResponse Append(const std::string& key, const std::string& value);
+    CommandResponse Delete(const std::string& key);
     [[nodiscard]]
     const KVMap& getData() const { return m_data;}
-
 private:
-    CommandResponse handleCommand(CommandRequest request);
     void applier();
     void saveSnapshot(int64_t index);
     void readSnapshot(Snapshot::ptr snap);

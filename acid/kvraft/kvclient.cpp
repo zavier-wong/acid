@@ -69,7 +69,7 @@ KVClient::~KVClient() {
 
 std::string KVClient::Get(const std::string& key) {
     CommandRequest request{.operation = GET, .key = key};
-    return Command(request);
+    return Command(request).value;
 }
 
 void KVClient::Put(const std::string& key, const std::string& value) {
@@ -82,7 +82,12 @@ void KVClient::Append(const std::string& key, const std::string& value) {
     Command(request);
 }
 
-std::string KVClient::Command(CommandRequest& request) {
+bool KVClient::Delete(const std::string& key) {
+    CommandRequest request{.operation = DELETE, .key = key};
+    return Command(request).error == Error::OK;
+}
+
+CommandResponse KVClient::Command(CommandRequest& request) {
     request.clientId = m_clientId;
     request.commandId = m_commandId;
     while (!m_stop) {
@@ -109,7 +114,7 @@ std::string KVClient::Command(CommandRequest& request) {
             continue;
         }
         ++m_commandId;
-        return response.value;
+        return response;
     }
     m_stopChan << true;
     return {};
