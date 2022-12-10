@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="https://cdn.staticfile.org/vue/2.4.2/vue.min.js"></script>
+    <script src="https://cdn.staticfile.org/axios/0.18.0/axios.min.js"></script>
+</head>
+<body>
+<div id="app">
+    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+        <tr>
+            <td width="60%">
+                <h1>分布式KV</h1>
+                集群节点<br>
+                1: http://127.0.0.1:10001 <span id="addr1"><b>(Leader)</b></span> <br>
+                2: http://127.0.0.1:10002 <span id="addr2"></span> <br>
+                3: http://127.0.0.1:10003 <span id="addr3"></span> <br>
+                Leader id: <b>{{ leaderId }}</b> <br>
+                <h1>数据库</h1>
+                <textarea
+                        id="kv_id"
+                        v-model="dataStr"
+                        style="width: 80%;height: 150px"
+                        placeholder="空数据库"
+                        readonly
+                ></textarea>
+                <br>
+                <input type="text" v-model="key" placeholder="key"/>
+                <br>
+                <input type="text" v-model="value" placeholder="value"/>
+                <br>
+                <button @click="del">delete</button>
+                <button @click="put">put</button>
+                <button @click="append">append</button>
+                <button @click="clear">clear</button>
+            </td>
+            <td width = "35%">
+                <h1>日志</h1>
+                <div style="width: 100%;height: 300px">
+                    <textarea
+                            id="log_id"
+                            v-model="logs"
+                            placeholder="日志"
+                            style="width: 100%;height: 100%"
+                            readonly
+                    ></textarea>
+                </div>
+            </td>
+            <td width = "5%">
+            </td>
+        </tr>
+    </table>
+</div>
+
+<script type = "text/javascript">
+    new Vue({
+        el: '#app',
+        data () {
+            return {
+                info: null,
+                kvdata: { }, // 数据库
+                key: "",
+                value: "",
+                leaderId: 1, // 集群的leader id，会不断变化
+                servers: {
+                    1: "http://127.0.0.1:10001",
+                    2: "http://127.0.0.1:10002",
+                    3: "http://127.0.0.1:10003"
+                },
+                logs: "",
+                dataStr: "",
+            }
+        },
+        methods:{
+            changeLeader() {
+                let old = this.leaderId
+                if (old === 3) {
+                    this.leaderId = 1
+                } else {
+                    this.leaderId += 1
+                }
+                this.appendLog("Change leader from " + old + " to " + this.leaderId)
+                for (const serversKey in this.servers) {
+                    let addr = document.getElementById("addr" + serversKey)
+                    if (serversKey == this.leaderId) {
+                        addr.innerHTML = "<b>(Leader)</b>"
+                    } else {
+                        addr.innerHTML = ""
+                    }
+                }
+            },
+            getTime() {
+                var date = new Date();
+                var h = (date.getHours() < 10 ? '0'+date.getHours():date.getHours())+ ':';
+                var m = (date.getMinutes() < 10 ? '0'+date.getMinutes():date.getMinutes()) + ':';
+                var s = (date.getSeconds() < 10 ? '0'+date.getSeconds():date.getSeconds()) + ".";
+                var mill = date.getMilliseconds()
+                return h+m+s+mill;
+            },
+            appendLog(str) {
+                this.logs = this.logs + "[" + this.getTime() + "]" + str + "\n"
+                const textarea = document.getElementById('log_id');
+                textarea.scrollTop = textarea.scrollHeight;
+            },
+            updateKV() {
+                this.dataStr = ""
+                Object.keys(this.kvdata).forEach((key) => {
+                    this.dataStr = this.dataStr + key + ": {" + this.kvdata[key] + "}\n"
+                })
+                const textarea = document.getElementById('kv_id');
+                textarea.scrollTop = textarea.scrollHeight;
+            },
+            del(){
+                this.Delete(this.key).then(()=> this.Dump())
+            },
+            put(){
+                this.Put(this.key, this.value).then(()=> this.Dump())
+            },
+            append(){
+                this.Append(this.key, this.value).then(()=> this.Dump())
+            },
+            clear(){
+                this.Clear().then(()=> this.Dump())
+            },
+            Get: async function (key) {
+                let response = await this.Command("get", key)
+                return response["value"]
+            },
+            Dump: async function () {
+                let response = await this.Command("dump")
+                console.log("kvdata ", response)
+                this.kvdata = response["data"]
+                this.updateKV()
+                return response["data"]
+            },
+            Put: async function (key, value) {
+                this.appendLog("Put " + key + " -> " + value)
+                let response = await this.Command("put", key, value)
+                return response["msg"] === "OK";
+            },
+            Append: async function (key, value) {
+                this.appendLog("Append " + key + " -> " + value)
+                let response = await this.Command("append", key, value)
+                return response["msg"] === "OK";
+            },
+            Delete: async function (key) {
+                this.appendLog("Delete " + key)
+                let response = await this.Command("delete", key)
+                return response["msg"] === "OK";
+            },
+            Clear: async function () {
+                this.appendLog("clear data")
+                let response = await this.Command("clear")
+                return response["msg"] === "OK";
+            },
+            Command: async function (command, key, value) {
+                let request = {
+                    method: 'post',
+                    contentType: 'application/json;charset=utf-8', // 发送的数据类型
+                    dataType: 'json',
+                    data: JSON.stringify({
+                        command: command,
+                        key: key,
+                        value: value
+                    })
+                }
+                axios.defaults.timeout = 2000; // 2s
+                while (true) {
+                    request["url"] = this.servers[this.leaderId] + "/kv"
+                    let response
+                    try {
+                        response = await axios(request)
+                    } catch (e) {
+                        // 节点掉线，换下一个节点
+                        this.changeLeader()
+                        await function () { return setInterval(function () {},1000) }
+                        continue;
+                    }
+                    console.log(response)
+                    if (response["data"]["msg"] === "Wrong Leader" || response["data"]["msg"] === "Timeout") {
+                        this.appendLog("Leader msg: " + response["data"]["msg"])
+                        this.changeLeader()
+                        await function () { return setInterval(function () {},1000) }
+                        continue;
+                    }
+                    if (response["data"]["msg"] !== "OK")
+                        this.appendLog("Leader msg: " + response["data"]["msg"])
+                    return response["data"]
+                }
+            },
+        },
+        mounted () {
+            console.log("mounted")
+            this.Dump()
+        },
+    })
+</script>
+
+</body>
+</html>
