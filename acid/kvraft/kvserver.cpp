@@ -73,6 +73,11 @@ CommandResponse KVServer::Delete(const std::string& key) {
     return handleCommand(request);
 }
 
+CommandResponse KVServer::Clear() {
+    CommandRequest request{.operation = CLEAR, .commandId = GetRandom()};
+    return handleCommand(request);
+}
+
 CommandResponse KVServer::handleCommand(CommandRequest request) {
     CommandResponse response;
     co_defer_scope {
@@ -167,6 +172,8 @@ void KVServer::readSnapshot(Snapshot::ptr snap) {
     }
     Serializer s(snap->data);
     try {
+        m_data.clear();
+        m_lastOperation.clear();
         s >> m_data >> m_lastOperation;
     } catch (...) {
         SPDLOG_LOGGER_CRITICAL(g_logger, "KVServer[{}] read snapshot fail", m_id);
@@ -196,8 +203,9 @@ CommandResponse KVServer::applyLogToStateMachine(const CommandRequest& request) 
             it = m_data.find(request.key);
             if (it == m_data.end()) {
                 response.error = NO_KEY;
+            } else {
+                response.value = it->second;
             }
-            response.value = it->second;
             break;
         case PUT:
             m_data[request.key] = request.value;
@@ -209,8 +217,12 @@ CommandResponse KVServer::applyLogToStateMachine(const CommandRequest& request) 
             it = m_data.find(request.key);
             if (it == m_data.end()) {
                 response.error = NO_KEY;
+            } else {
+                m_data.erase(it);
             }
-            m_data.erase(it);
+            break;
+        case CLEAR:
+            m_data.clear();
             break;
         default:
             SPDLOG_LOGGER_CRITICAL(g_logger, "unexpect operation {}", (int)request.operation);

@@ -46,6 +46,12 @@ int32_t KVStoreServlet::handle(HttpRequest::ptr request, HttpResponse::ptr respo
         response->setJson(resp);
     };
 
+    // 允许跨域请求
+    response->setHeader("Access-Control-Allow-Origin", "*");
+    response->setHeader("Access-Control-Allow-Methods", "*");
+    response->setHeader("Access-Control-Max-Age", "3600");
+    response->setHeader("Access-Control-Allow-Headers", "*");
+
     Params params(req);
 
     if (!params.command) {
@@ -60,7 +66,12 @@ int32_t KVStoreServlet::handle(HttpRequest::ptr request, HttpResponse::ptr respo
         resp["data"] = data;
         resp["msg"] = "OK";
         return 0;
+    } else if (command == "clear") {
+        kvraft::CommandResponse commandResponse = m_store->Clear();
+        resp["msg"] = kvraft::toString(commandResponse.error);
+        return 0;
     }
+
     if (!params.key) {
         resp["msg"] = "The request is missing a key";
         return 0;

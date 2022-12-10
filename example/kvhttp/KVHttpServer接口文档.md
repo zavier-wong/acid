@@ -49,11 +49,11 @@ localhost:10003
 
     - OK ----正常返回
 
-    - NO_KEY ----没有该key
+    - No Key ----没有该key
 
-    - WRONG_LEADER ----请求的http server不是kv集群的leader
+    - Wrong Leader ----请求的http server不是kv集群的leader
   
-    - TIMEOUT ----请求超时
+    - Timeout ----请求超时
   
     - 其他 msg
 
@@ -114,7 +114,7 @@ POST	/kv
 POST	/kv
 // 请求参数
 {
-    "command": "put",
+    "command": "append",
     "key": "key"，
     "value": "value"
 }
@@ -131,6 +131,19 @@ POST	/kv
 {
     "command": "delete",
     "key": "key"
+}
+// 响应参数
+{
+    "msg": "OK"
+}
+```
+#### 清空数据
+
+```
+POST	/kv
+// 请求参数
+{
+    "command": "clear"
 }
 // 响应参数
 {

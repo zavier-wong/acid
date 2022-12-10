@@ -87,6 +87,11 @@ bool KVClient::Delete(const std::string& key) {
     return Command(request).error == Error::OK;
 }
 
+void KVClient::Clear() {
+    CommandRequest request{.operation = CLEAR};
+    Command(request);
+}
+
 CommandResponse KVClient::Command(CommandRequest& request) {
     request.clientId = m_clientId;
     request.commandId = m_commandId;

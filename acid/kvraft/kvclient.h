@@ -21,6 +21,7 @@ public:
     void Put(const std::string& key, const std::string& value);
     void Append(const std::string& key, const std::string& value);
     bool Delete(const std::string& key);
+    void Clear();
 private:
     CommandResponse Command(CommandRequest& request);
     bool connect(int64_t id);

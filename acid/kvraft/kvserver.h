@@ -25,6 +25,7 @@ public:
     CommandResponse Put(const std::string& key, const std::string& value);
     CommandResponse Append(const std::string& key, const std::string& value);
     CommandResponse Delete(const std::string& key);
+    CommandResponse Clear();
     [[nodiscard]]
     const KVMap& getData() const { return m_data;}
 private:
