@@ -66,11 +66,12 @@ public:
 
     /**
      * Create a Raft server
+     * @param servers 其他 raft 节点的地址
      * @param id 当前 raft 节点在集群内的唯一标识
      * @param persister raft 保存其持久状态的地方，并且从保存的状态初始化当前节点
      * @param applyChan 是发送达成共识的日志的 channel
      */
-    RaftNode(int64_t id, Persister::ptr persister, co::co_chan<ApplyMsg> applyChan);
+    RaftNode(std::map<int64_t, std::string>& servers, int64_t id, Persister::ptr persister, co::co_chan<ApplyMsg> applyChan);
 
     ~RaftNode();
     /**

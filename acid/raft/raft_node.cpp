@@ -48,8 +48,7 @@ struct _RaftNodeIniter{
 [[maybe_unused]]
 static _RaftNodeIniter s_initer;
 
-
-RaftNode::RaftNode(int64_t id, Persister::ptr persister, co::co_chan<ApplyMsg> applyChan)
+RaftNode::RaftNode(std::map<int64_t, std::string>& servers, int64_t id, Persister::ptr persister, co::co_chan<ApplyMsg> applyChan)
         : m_id(id)
         , m_logs(persister, 1000)
         , m_persister(persister)
@@ -67,6 +66,13 @@ RaftNode::RaftNode(int64_t id, Persister::ptr persister, co::co_chan<ApplyMsg> a
     registerMethod(INSTALL_SNAPSHOT, [this](InstallSnapshotArgs args) {
         return handleInstallSnapshot(std::move(args));
     });
+    for (auto peer: servers) {
+        if (peer.first == id)
+            continue;
+        Address::ptr address = Address::LookupAny(peer.second);
+        // 添加节点
+        addPeer(peer.first, address);
+    }
 }
 
 RaftNode::~RaftNode() {

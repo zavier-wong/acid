@@ -19,17 +19,10 @@ KVServer::KVServer(std::map<int64_t, std::string>& servers, int64_t id, Persiste
     , m_persister(persister)
     , m_maxRaftState(maxRaftState) {
     Address::ptr addr = Address::LookupAny(servers[id]);
-    m_raft = std::make_unique<RaftNode>(id, persister, m_applychan);
+    m_raft = std::make_unique<RaftNode>(servers, id, persister, m_applychan);
     while (!m_raft->bind(addr)) {
         SPDLOG_LOGGER_WARN(g_logger, "kvserver[{}] bind {} fail", id, addr->toString());
         sleep(3);
-    }
-    for (auto peer: servers) {
-        if (peer.first == id)
-            continue;
-        Address::ptr address = Address::LookupAny(peer.second);
-        // 添加节点
-        m_raft->addPeer(peer.first, address);
     }
     m_raft->registerMethod(COMMAND, [this](CommandRequest request) {
         return handleCommand(std::move(request));
@@ -103,6 +96,7 @@ CommandResponse KVServer::handleCommand(CommandRequest request) {
     if (!chan.TimedPop(response, std::chrono::milliseconds(acid::Config::Lookup<uint64_t>("raft.rpc.timeout")->getValue()))) {
         response.error = TIMEOUT;
     }
+    lock.lock();
     m_nofiyChans.erase(entry->index);
     return response;
 }
