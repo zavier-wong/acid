@@ -17,16 +17,9 @@ void Main() {
     int64_t id = 2;
     Persister::ptr persister = std::make_shared<Persister>(fmt::format("raft-node-{}", id));
     co::co_chan<ApplyMsg> applyChan;
-    RaftNode node(id, persister, applyChan);
+    RaftNode node(peers, id, persister, applyChan);
     Address::ptr addr = Address::LookupAny(peers[node.getNodeId()]);
     node.bind(addr);
-    for (auto peer: peers) {
-        if (peer.first == node.getNodeId())
-            continue;
-        Address::ptr address = Address::LookupAny(peer.second);
-        // 添加节点
-        node.addPeer(peer.first, address);
-    }
     go [&node, id] {
         for (int i = 0; ; ++i) {
             if (node.isLeader()) {
