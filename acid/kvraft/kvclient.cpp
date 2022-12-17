@@ -46,10 +46,7 @@ KVClient::KVClient(std::map<int64_t, std::string> &servers) : m_clientId(GetRand
             SPDLOG_LOGGER_ERROR(g_logger, "lookup server[{}] address fail, address: {}", peer.second, peer.second);
             continue;
         }
-        // 关闭 RpcClient 自带的心跳
         auto server = std::make_shared<rpc::RpcClient>();
-        // 关闭心跳
-        server->setHeartbeat(false);
         // 设置rpc超时时间
         server->setTimeout(s_rpc_timeout);
         m_servers[peer.first] = {address, server};
