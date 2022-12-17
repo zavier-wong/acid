@@ -106,10 +106,41 @@ void seq2seq() {
     SPDLOG_INFO(acid::LaxicalCast<std::list<std::string>,std::string>()(b));
 }
 
-void map2map() {
+enum class Color : uint8_t {
+    red,
+    green,
+    yellow,
+};
 
+struct UserDefine {
+    int a{};
+    char b{};
+    std::string c{};
+    Color d;
+    std::vector<int> e;
+    std::string toString() const {
+        std::string str = fmt::format("a: {}, b: {}, c: {}, d: {}, e:[", a, b, c, static_cast<int>(d));
+        for (auto item: e) {
+            str += fmt::format("{} ", item);
+        }
+        return str + "]";
+    }
+};
+// 无侵入式序列化
+void test10() {
+    UserDefine userDefine = UserDefine{.a = 1, .b = '2', .c = "3", .d = Color::green, .e = {4, 5}};
+    SPDLOG_INFO(userDefine.toString());
+    acid::rpc::Serializer serializer;
+    serializer << userDefine;
+    serializer.reset();
+
+    userDefine = UserDefine{};
+    SPDLOG_INFO(userDefine.toString());
+
+    serializer >> userDefine;
+    SPDLOG_INFO(userDefine.toString());
 }
 
 int main() {
-    test6();
+    test10();
 }
