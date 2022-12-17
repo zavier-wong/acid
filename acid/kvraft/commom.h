@@ -34,19 +34,6 @@ inline std::string toString(Error err) {
     return str;
 }
 
-inline Serializer& operator<<(Serializer& s, const Error& err) {
-    int n = (int)err;
-    s << n;
-    return s;
-}
-
-inline Serializer& operator>>(Serializer& s, Error& err) {
-    int n;
-    s >> n;
-    err = (Error)n;
-    return s;
-}
-
 enum Operation {
     GET,
     PUT,
@@ -68,19 +55,6 @@ inline std::string toString(Operation op) {
     return str;
 }
 
-inline Serializer& operator<<(Serializer& s, const Operation& err) {
-    int n = (int)err;
-    s << n;
-    return s;
-}
-
-inline Serializer& operator>>(Serializer& s, Operation& err) {
-    int n;
-    s >> n;
-    err = (Operation)n;
-    return s;
-}
-
 struct CommandRequest {
     Operation operation;
     std::string key;
@@ -92,14 +66,6 @@ struct CommandRequest {
                                       kvraft::toString(operation), key, value, clientId, commandId);
         return "{" + str + "}";
     }
-    friend Serializer& operator<<(Serializer& s, const CommandRequest& request) {
-        s << request.operation << request.key << request.value << request.clientId << request.commandId;
-        return s;
-    }
-    friend Serializer& operator>>(Serializer& s, CommandRequest& request) {
-        s >> request.operation >> request.key >> request.value >> request.clientId >> request.commandId;
-        return s;
-    }
 };
 
 struct CommandResponse {
@@ -109,14 +75,6 @@ struct CommandResponse {
     std::string toString() const {
         std::string str = fmt::format("error: {}, value: {}, leaderId: {}", kvraft::toString(error), value, leaderId);
         return "{" + str + "}";
-    }
-    friend Serializer& operator<<(Serializer& s, const CommandResponse& response) {
-        s << response.error << response.value << response.leaderId;
-        return s;
-    }
-    friend Serializer& operator>>(Serializer& s, CommandResponse& response) {
-        s >> response.error >> response.value >> response.leaderId;
-        return s;
     }
 };
 

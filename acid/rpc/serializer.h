@@ -18,11 +18,12 @@
 #include <utility>
 #include <vector>
 #include "acid/common/byte_array.h"
+#include "acid/common/reflection.h"
 #include "protocol.h"
 
 namespace acid::rpc {
 /**
- * @brief RPC 序列化 / 反序列化包装，会自动进行网络序转换
+ * @brief 基于反射实现的无侵入式序列化和反序列化
  * @details 序列化有以下规则：
  * 1.默认情况下序列化，8，16位类型以及浮点数不压缩，32，64位有符号/无符号数采用 zigzag 和 varints 编码压缩
  * 2.针对 std::string 会将长度信息压缩序列化作为元数据，然后将原数据直接写入。char数组会先转换成 std::string 后按此规则序列化
@@ -33,6 +34,10 @@ namespace acid::rpc {
  * 关联容器：set, multiset, map, multimap
  * 无序容器：unordered_set, unordered_multiset, unordered_map, unordered_multimap
  * 异构容器：tuple
+ *
+ * 用户自定义的类只有为聚合类才能自动序列化，如果非聚合类可以实现以下两个友元函数来支持序列化
+ * friend Serializer& operator<<(Serializer& s, const UserDefind& u);
+ * friend Serializer& operator>>(Serializer& s, UserDefind& u);
  */
 class Serializer {
 public:
@@ -100,9 +105,11 @@ public:
         m_byteArray->clear();
     }
 
-    template<typename T>
-    void read(T& t) {
-        if constexpr(std::is_same_v<T, bool>){
+    template<typename Type>
+    void read(Type& t) {
+        using T = std::remove_cvref_t<Type>;
+        static_assert(!std::is_pointer_v<T>);
+        if constexpr(std::is_same_v<T, bool> || std::is_same_v<T, char> || std::is_same_v<T, unsigned char>){
             t = m_byteArray->readFint8();
         } else if constexpr(std::is_same_v<T, float>){
             t = m_byteArray->readFloat();
@@ -126,12 +133,21 @@ public:
             t = m_byteArray->readUint64();
         } else if constexpr(std::is_same_v<T, std::string>){
             t = m_byteArray->readStringVint();
+        } else if constexpr(std::is_enum_v<T>){
+            t = static_cast<T>(m_byteArray->readInt32());
+        } else if constexpr(std::is_class_v<T>) {
+            static_assert(std::is_aggregate_v<T>);
+            VisitMembers(t, [&](auto &&...items) {
+                (void)((*this) >> ... >> items);
+            });
         }
     }
 
-    template<typename T>
-    void write(T t) {
-        if constexpr(std::is_same_v<T, bool>){
+    template<typename Type>
+    void write(const Type& t) {
+        using T = std::remove_cvref_t<Type>;
+        static_assert(!std::is_pointer_v<T>);
+        if constexpr(std::is_same_v<T, bool> || std::is_same_v<T, char> || std::is_same_v<T, unsigned char>){
             m_byteArray->writeFint8(t);
         } else if constexpr(std::is_same_v<T, float>){
             m_byteArray->writeFloat(t);
@@ -159,19 +175,24 @@ public:
             m_byteArray->writeStringVint(std::string(t));
         } else if constexpr(std::is_same_v<T, const char*>){
             m_byteArray->writeStringVint(std::string(t));
+        } else if constexpr(std::is_enum_v<T>){
+            m_byteArray->writeInt32(static_cast<int32_t>(t));
+        } else if constexpr(std::is_class_v<T>) {
+            static_assert(std::is_aggregate_v<T>);
+            VisitMembers(t, [&](auto &&...items) {
+                (void)((*this) << ... << items);
+            });
         }
     }
 
 public:
     template<typename T>
-    [[maybe_unused]]
     Serializer &operator >> (T& i){
         read(i);
         return *this;
     }
 
     template<typename T>
-    [[maybe_unused]]
     Serializer &operator << (const T& i){
         write(i);
         return *this;

@@ -28,14 +28,6 @@ struct RequestVoteArgs {
                                       term, candidateId, lastLogIndex, lastLogTerm);
         return "{" + str + "}";
     }
-    friend rpc::Serializer& operator<<(rpc::Serializer& s, const RequestVoteArgs& arg) {
-        s << arg.term << arg.candidateId << arg.lastLogIndex << arg.lastLogTerm;
-        return s;
-    }
-    friend rpc::Serializer& operator>>(rpc::Serializer& s, RequestVoteArgs& arg) {
-        s >> arg.term >> arg.candidateId >> arg.lastLogIndex >> arg.lastLogTerm;
-        return s;
-    }
 };
 
 /**
@@ -49,21 +41,12 @@ struct RequestVoteReply {
         std::string str = fmt::format("Term: {}, LeaderId: {}, VoteGranted: {}", term, leaderId, voteGranted);
         return "{" + str + "}";
     }
-    friend rpc::Serializer& operator<<(rpc::Serializer& s, const RequestVoteReply& reply) {
-        s << reply.term << reply.leaderId << reply.voteGranted;
-        return s;
-    }
-    friend rpc::Serializer& operator>>(rpc::Serializer& s, RequestVoteReply& reply) {
-        s >> reply.term >> reply.leaderId >> reply.voteGranted;
-        return s;
-    }
 };
 
 /**
  * @brief AppendEntries rpc 调用的参数
  */
 struct AppendEntriesArgs {
-    AppendEntriesArgs() = default;
     int64_t term;               // 领导人的任期
     int64_t leaderId;           // 领导id
     int64_t prevLogIndex;       // 紧邻新日志条目之前的那个日志条目的索引
@@ -80,14 +63,6 @@ struct AppendEntriesArgs {
         }
         return "{" + str + "]}";
     }
-    friend rpc::Serializer& operator<<(rpc::Serializer& s, const AppendEntriesArgs& arg) {
-        s << arg.term << arg.leaderId << arg.prevLogIndex << arg.prevLogTerm << arg.entries << arg.leaderCommit;
-        return s;
-    }
-    friend rpc::Serializer& operator>>(rpc::Serializer& s, AppendEntriesArgs& arg) {
-        s >> arg.term >> arg.leaderId >> arg.prevLogIndex >> arg.prevLogTerm >> arg.entries >> arg.leaderCommit;
-        return s;
-    }
 };
 
 /**
@@ -103,14 +78,6 @@ struct AppendEntriesReply {
                                       success, term, leaderId, nextIndex);
         return "{" + str + "}";
     }
-    friend rpc::Serializer& operator<<(rpc::Serializer& s, const AppendEntriesReply& reply) {
-        s << reply.success << reply.term << reply.leaderId << reply.nextIndex;
-        return s;
-    }
-    friend rpc::Serializer& operator>>(rpc::Serializer& s, AppendEntriesReply& reply) {
-        s >> reply.success >> reply.term >> reply.leaderId >> reply.nextIndex;
-        return s;
-    }
 };
 
 struct InstallSnapshotArgs {
@@ -122,14 +89,6 @@ struct InstallSnapshotArgs {
                                       term, leaderId, snapshot.metadata.index, snapshot.metadata.term);
         return "{" + str + "}";
     }
-    friend rpc::Serializer& operator<<(rpc::Serializer& s, const InstallSnapshotArgs& arg) {
-        s << arg.term << arg.leaderId << arg.snapshot;
-        return s;
-    }
-    friend rpc::Serializer& operator>>(rpc::Serializer& s, InstallSnapshotArgs& arg) {
-        s >> arg.term >> arg.leaderId >> arg.snapshot;
-        return s;
-    }
 };
 
 struct InstallSnapshotReply {
@@ -138,14 +97,6 @@ struct InstallSnapshotReply {
     std::string toString() const {
         std::string str = fmt::format("Term: {}, LeaderId: {}", term, leaderId);
         return "{" + str + "}";
-    }
-    friend rpc::Serializer& operator<<(rpc::Serializer& s, const InstallSnapshotReply& reply) {
-        s << reply.term << reply.leaderId;
-        return s;
-    }
-    friend rpc::Serializer& operator>>(rpc::Serializer& s, InstallSnapshotReply& reply) {
-        s >> reply.term >> reply.leaderId;
-        return s;
     }
 };
 
