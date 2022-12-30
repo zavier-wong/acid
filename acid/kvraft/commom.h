@@ -15,11 +15,26 @@ using namespace acid::rpc;
 
 inline const std::string COMMAND = "KVServer::handleCommand";
 
+inline const std::string KEYEVENTS_PUT = "put";
+inline const std::string KEYEVENTS_DEL = "del";
+inline const std::string KEYEVENTS_APPEND = "append";
+inline const std::string TOPIC_KEYEVENT = "__keyevent__:";
+inline const std::string TOPIC_KEYSPACE = "__keyspace__:";
+// 所有 key 的事件
+inline const std::string TOPIC_ALL_KEYEVENTS = "__keyevent__:*";
+// 所有 key 的 put 事件
+inline const std::string TOPIC_KEYEVENTS_PUT = TOPIC_KEYEVENT + KEYEVENTS_PUT;
+// 所有 key 的 del 事件
+inline const std::string TOPIC_KEYEVENTS_DEL = TOPIC_KEYEVENT + KEYEVENTS_DEL;
+// 所有 key 的 append 事件
+inline const std::string TOPIC_KEYEVENTS_APPEND = TOPIC_KEYEVENT + KEYEVENTS_APPEND;
+
 enum Error {
     OK,
     NO_KEY,
     WRONG_LEADER,
     TIMEOUT,
+    CLOSED,
 };
 
 inline std::string toString(Error err) {
@@ -29,6 +44,7 @@ inline std::string toString(Error err) {
         case NO_KEY: str = "No Key"; break;
         case WRONG_LEADER: str = "Wrong Leader"; break;
         case TIMEOUT: str = "Timeout"; break;
+        case CLOSED: str = "Closed"; break;
         default: str = "Unexpect Error";
     }
     return str;

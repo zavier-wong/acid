@@ -98,6 +98,30 @@ CommandResponse KVServer::handleCommand(CommandRequest request) {
     }
     lock.lock();
     m_nofiyChans.erase(entry->index);
+    if (response.error == Error::OK) {
+        switch (request.operation) {
+            case PUT:
+                go [key = request.key, this] {
+                    m_raft->publish(TOPIC_KEYEVENTS_PUT, key);
+                    m_raft->publish(TOPIC_KEYSPACE + key, KEYEVENTS_PUT);
+                };
+                break;
+            case APPEND:
+                go [key = request.key, this] {
+                    m_raft->publish(TOPIC_KEYEVENTS_APPEND, key);
+                    m_raft->publish(TOPIC_KEYSPACE + key, KEYEVENTS_APPEND);
+                };
+                break;
+            case DELETE:
+                go [key = request.key, this] {
+                    m_raft->publish(TOPIC_KEYEVENTS_DEL, key);
+                    m_raft->publish(TOPIC_KEYSPACE + key, KEYEVENTS_DEL);
+                };
+                break;
+            default:
+                void(0);
+        }
+    }
     return response;
 }
 

@@ -1,6 +1,7 @@
 //
 // Created by zavier on 2022/1/13.
 //
+#include <fnmatch.h>
 #include "acid/common/config.h"
 #include "rpc_server.h"
 
@@ -80,8 +81,6 @@ void RpcServer::start() {
     if (!isStop()) {
         return;
     }
-    m_clean_chan = co::co_chan<bool>();
-    m_stop_clean = false;
 
     if (m_registry) {
         for(auto& item: m_handlers) {
@@ -103,23 +102,6 @@ void RpcServer::start() {
         });
     }
 
-    // 开启协程定时清理订阅列表
-    go [this] {
-        while (!m_stop_clean) {
-            sleep(5);
-            std::unique_lock<co::co_mutex> lock(m_sub_mtx);
-            for (auto it = m_subscribes.cbegin(); it != m_subscribes.cend();) {
-                auto conn = it->second.lock();
-                if (conn == nullptr || !conn->isConnected()) {
-                    it = m_subscribes.erase(it);
-                } else {
-                    ++it;
-                }
-            }
-        }
-        m_clean_chan << true;
-    };
-
     TcpServer::start();
 }
 
@@ -128,8 +110,6 @@ void RpcServer::stop() {
         return;
     }
     m_heartTimer.stop();
-    m_stop_clean = true;
-    m_clean_chan >> nullptr;
     TcpServer::stop();
 }
 
@@ -149,13 +129,15 @@ void RpcServer::handleClient(Socket::ptr client) {
     while (true) {
         Protocol::ptr request = session->recvProtocol();
         if (!request) {
+            client->close();
             break;
         }
         wait_queue << true;
         // 更新定时器
         heartTimer.StopTimer();
         heartTimer = m_timer.ExpireAt(std::chrono::milliseconds(m_aliveTime), on_close);
-        go [request, session, wait_queue, this] {
+
+        go [request, client, session, wait_queue, this] {
             wait_queue >> nullptr;
             Protocol::ptr response;
             Protocol::MsgType type = request->getMsgType();
@@ -166,11 +148,9 @@ void RpcServer::handleClient(Socket::ptr client) {
                 case Protocol::MsgType::RPC_METHOD_REQUEST:
                     response = handleMethodCall(request);
                     break;
-                case Protocol::MsgType::RPC_SUBSCRIBE_REQUEST:
-                    response = handleSubscribe(request, session);
+                case Protocol::MsgType::RPC_PUBSUB_REQUEST:
+                    response = handlePubsubRequest(request, client);
                     break;
-                case Protocol::MsgType::RPC_PUBLISH_RESPONSE:
-                    return;
                 default:
                     SPDLOG_LOGGER_ERROR(g_logger, "protocol: {}", request->toString());
                     break;
@@ -201,8 +181,7 @@ Protocol::ptr RpcServer::handleMethodCall(Protocol::ptr p) {
     Serializer request(p->getContent());
     request >> func_name;
     Serializer rt = call(func_name, request.toString());
-    Protocol::ptr response = Protocol::Create(
-            Protocol::MsgType::RPC_METHOD_RESPONSE, rt.toString(), p->getSequenceId());
+    Protocol::ptr response = Protocol::Create(Protocol::MsgType::RPC_METHOD_RESPONSE, rt.toString(), p->getSequenceId());
     return response;
 }
 
@@ -231,17 +210,137 @@ Protocol::ptr RpcServer::handleHeartbeatPacket(Protocol::ptr p) {
     return Protocol::HeartBeat();
 }
 
-Protocol::ptr RpcServer::handleSubscribe(Protocol::ptr proto, RpcSession::ptr client) {
-    std::unique_lock<co::co_mutex> lock(m_sub_mtx);
-    std::string key;
+Protocol::ptr RpcServer::handlePubsubRequest(Protocol::ptr proto, Socket::ptr client) {
+    PubsubRequest request;
     Serializer s(proto->getContent());
-    s >> key;
-    m_subscribes.emplace(key, std::weak_ptr<RpcSession>(client));
-    Result<> res = Result<>::Success();
+    s >> request;
+    PubsubResponse response{.type = request.type};
+    switch (request.type) {
+        case PubsubMsgType::Publish:
+            go [request, this] {
+                publish(request.channel, request.message);
+            };
+            break;
+        case PubsubMsgType::Subscribe:
+            subscribe(request.channel, client);
+            response.channel = request.channel;
+            break;
+        case PubsubMsgType::Unsubscribe:
+            unsubscribe(request.channel, client);
+            response.channel = request.channel;
+            break;
+        case PubsubMsgType::PatternSubscribe:
+            patternSubscribe(request.pattern, client);
+            response.pattern = request.pattern;
+            break;
+        case PubsubMsgType::PatternUnsubscribe:
+            patternUnsubscribe(request.pattern, client);
+            response.pattern = request.pattern;
+            break;
+        default:
+            SPDLOG_LOGGER_DEBUG(g_logger, "unexpect PubsubMsgType: {}", static_cast<int>(request.type));
+            return {};
+            break;
+    }
     s.reset();
-    s << res;
-    return Protocol::Create(Protocol::MsgType::RPC_SUBSCRIBE_RESPONSE, s.toString(), 0);
+    s << response;
+    s.reset();
+    return Protocol::Create(Protocol::MsgType::RPC_PUBSUB_RESPONSE, s.toString(), proto->getSequenceId());
 }
 
+void RpcServer::publish(const std::string& channel, const std::string& message) {
+    std::unique_lock<MutexType> mutex(m_pubsub_mutex);
+    // 找出订阅该频道的客户端
+    auto it = m_pubsub_channels.find(channel);
+    if (it != m_pubsub_channels.end()) {
+        auto& clients_list = it->second;
+        if (clients_list.empty()) {
+            // 该判断已经没有客户端订阅，删除
+            m_pubsub_channels.erase(it);
+        } else {
+            PubsubRequest request{.type = PubsubMsgType::Message, .channel = channel, .message = message};
+            Serializer s;
+            s << request;
+            s.reset();
+            Protocol::ptr proto = Protocol::Create(Protocol::MsgType::RPC_PUBSUB_REQUEST, s.toString());
+            auto iter = clients_list.begin();
+            while (iter != clients_list.end()) {
+                if (!(*iter)->isConnected()) {
+                    iter = clients_list.erase(iter);
+                    continue;
+                }
+                RpcSession::ptr session = std::make_shared<RpcSession>(*iter, false);
+                session->sendProtocol(proto);
+                ++iter;
+            }
+        }
+    }
+    PubsubRequest request{.type = PubsubMsgType::PatternMessage, .channel = channel, .message = message};
+    // 找出模式订阅该频道的客户端
+    auto iter = m_pubsub_patterns.begin();
+    while (iter != m_pubsub_patterns.end()) {
+        auto& pattern = iter->first;
+        auto& client = iter->second;
+        if (!client->isConnected()) {
+            iter = m_pubsub_patterns.erase(iter);
+            continue;
+        }
+        // 匹配成功
+        if(!fnmatch(pattern.c_str(), channel.c_str(), 0)) {
+            request.pattern = pattern;
+            Serializer s;
+            s << request;
+            s.reset();
+            Protocol::ptr proto = Protocol::Create(Protocol::MsgType::RPC_PUBSUB_REQUEST, s.toString());
+            RpcSession::ptr session = std::make_shared<RpcSession>(client, false);
+            session->sendProtocol(proto);
+        }
+        ++iter;
+    }
+}
+
+void RpcServer::subscribe(const std::string &channel, Socket::ptr client) {
+    std::unique_lock<MutexType> mutex(m_pubsub_mutex);
+    auto& clients = m_pubsub_channels[channel];
+    clients.emplace_back(std::move(client));
+}
+
+void RpcServer::unsubscribe(const std::string &channel, Socket::ptr client) {
+    std::unique_lock<MutexType> mutex(m_pubsub_mutex);
+    auto it = m_pubsub_channels.find(channel);
+    if (it == m_pubsub_channels.end()) {
+        return;
+    }
+    auto& clients = it->second;
+    auto iter = clients.begin();
+    while (iter != clients.end()) {
+        if (!(*iter)->isConnected() || (*iter) == client) {
+            iter = clients.erase(iter);
+            continue;
+        }
+        ++iter;
+    }
+    if (clients.empty()) {
+        m_pubsub_channels.erase(it);
+        return;
+    }
+}
+
+void RpcServer::patternSubscribe(const std::string &pattern, Socket::ptr client) {
+    std::unique_lock<MutexType> mutex(m_pubsub_mutex);
+    m_pubsub_patterns.emplace_back(pattern, std::move(client));
+}
+
+void RpcServer::patternUnsubscribe(const std::string &pattern, Socket::ptr client) {
+    std::unique_lock<MutexType> mutex(m_pubsub_mutex);
+    auto iter = m_pubsub_patterns.begin();
+    while (iter != m_pubsub_patterns.end()) {
+        if (!iter->second->isConnected() || (iter->first == pattern && iter->second == client)) {
+            iter = m_pubsub_patterns.erase(iter);
+            continue;
+        }
+        ++iter;
+    }
+}
 
 }

@@ -10,6 +10,7 @@
 #include "acid/net/tcp_server.h"
 #include "acid/common/traits.h"
 #include "protocol.h"
+#include "pubsub.h"
 #include "rpc.h"
 #include "rpc_session.h"
 namespace acid::rpc {
@@ -43,33 +44,14 @@ public:
      * @param[in] name 名字
      */
     void setName(const std::string& name) override;
+
     /**
-     * @brief 发布消息
-     * @param[in] key 发布的key
-     * @param[in] data 支持 Serializer 的都可以发布
+     * @brief 对一个频道发布消息
+     * @param channel 频道名
+     * @param message 消息
      */
-    template <typename T>
-    void publish(const std::string& key, T data) {
-        {
-            std::unique_lock<co::co_mutex> lock(m_sub_mtx);
-            if (m_subscribes.empty()) {
-                return;
-            }
-        }
-        Serializer s;
-        s << key << data;
-        s.reset();
-        Protocol::ptr pub = Protocol::Create(Protocol::MsgType::RPC_PUBLISH_REQUEST, s.toString(), 0);
-        std::unique_lock<co::co_mutex> lock(m_sub_mtx);
-        auto range = m_subscribes.equal_range(key);
-        for (auto it = range.first; it != range.second; ++it) {
-            auto conn = it->second.lock();
-            if (conn == nullptr || !conn->isConnected()) {
-                continue;
-            }
-            conn->sendProtocol(pub);
-        }
-    }
+    void publish(const std::string& channel, const std::string& message);
+
 protected:
     /**
      * @brief 向服务注册中心发起注册
@@ -141,10 +123,17 @@ protected:
      */
     Protocol::ptr handleHeartbeatPacket(Protocol::ptr proto);
     /**
-     * @brief 处理订阅请求
+     * @brief 处理发布订阅
      */
-    Protocol::ptr handleSubscribe(Protocol::ptr proto, RpcSession::ptr client);
+    Protocol::ptr handlePubsubRequest(Protocol::ptr proto, Socket::ptr client);
 
+    void subscribe(const std::string& channel, Socket::ptr client);
+
+    void unsubscribe(const std::string& channel, Socket::ptr client);
+
+    void patternSubscribe(const std::string& pattern, Socket::ptr client);
+
+    void patternUnsubscribe(const std::string& pattern, Socket::ptr client);
 private:
     // 保存注册的函数
     std::map<std::string, std::function<void(Serializer, const std::string&)>> m_handlers;
@@ -156,14 +145,12 @@ private:
     uint32_t m_port;
     // 和客户端的心跳时间 默认 40s
     uint64_t m_aliveTime;
-    // 订阅的客户端
-    std::unordered_multimap<std::string, std::weak_ptr<RpcSession>> m_subscribes;
-    // 保护 m_subscribes
-    MutexType m_sub_mtx;
-    // 停止清理订阅协程
-    std::atomic_bool m_stop_clean{};
-    // 等待清理协程停止
-    co::co_chan<bool> m_clean_chan;
+    //用于保存所有频道的订阅关系
+    std::map<std::string, std::list<Socket::ptr> > m_pubsub_channels;
+    //保存所有模式订阅关系
+    std::list<std::pair<std::string, Socket::ptr>> m_pubsub_patterns;
+
+    MutexType m_pubsub_mutex;
 };
 
 }

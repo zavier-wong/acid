@@ -45,11 +45,8 @@ public:
         RPC_SERVICE_DISCOVER,   // 向中心请求服务发现
         RPC_SERVICE_DISCOVER_RESPONSE,
 
-        RPC_SUBSCRIBE_REQUEST,  // 订阅
-        RPC_SUBSCRIBE_RESPONSE,
-
-        RPC_PUBLISH_REQUEST,    // 发布
-        RPC_PUBLISH_RESPONSE
+        RPC_PUBSUB_REQUEST,     // 发布订阅
+        RPC_PUBSUB_RESPONSE,
     };
 
     static Protocol::ptr Create(MsgType type, const std::string& content, uint32_t id = 0) {

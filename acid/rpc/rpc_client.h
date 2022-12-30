@@ -10,6 +10,7 @@
 #include "acid/net/socket_stream.h"
 #include "acid/common/traits.h"
 #include "protocol.h"
+#include "pubsub.h"
 #include "route_strategy.h"
 #include "rpc.h"
 #include "rpc_session.h"
@@ -124,37 +125,82 @@ public:
         return chan;
     }
 
+
+    bool isSubscribe();
+
     /**
-     * @brief 订阅消息
-     * @param[in] key 订阅的key
-     * @param[in] func 回调函数
+     * 取消订阅频道
+     * @param channel 频道
      */
-    template<typename Func>
-    void subscribe(const std::string& key, Func func) {
-        {
-            std::unique_lock<co::co_mutex> lock(m_mutex);
-            auto it = m_subHandle.find(key);
-            if (it != m_subHandle.end()) {
-                SPDLOG_LOGGER_ERROR(GetLogInstance(), "duplicated subscribe");
-                return;
-            }
+    void unsubscribe(const std::string& channel);
 
-           m_subHandle.emplace(key, std::move(func));
-        }
+    /**
+     * 订阅频道，会阻塞 \n
+     * @tparam Args std::string ...
+     * @tparam Listener 用于监听订阅事件
+     * @param channels 订阅的频道列表
+     * @return 当成功取消所有的订阅后返回 true，连接断开或其他导致订阅失败将返回 false
+     */
+    template<typename ... Args>
+    bool subscribe(PubsubListener::ptr listener, const Args& ... channels) {
+        static_assert(sizeof...(channels));
+        return subscribe(std::move(listener), {channels...});
+    }
+
+    /**
+    * 订阅频道，会阻塞 \n
+    * @tparam Listener 用于监听订阅事件
+    * @param channels 订阅的频道列表
+    * @return 当成功取消所有的订阅后返回 true，连接断开或其他导致订阅失败将返回 false
+    */
+    bool subscribe(PubsubListener::ptr listener, const std::vector<std::string>& channels);
+
+    /**
+     * 取消模式订阅频道
+     * @param pattern 模式
+     */
+    void patternUnsubscribe(const std::string& pattern);
+
+    /**
+     * 模式订阅，阻塞 \n
+     * 匹配规则：\n
+     *  '?': 匹配 0 或 1 个字符 \n
+     *  '*': 匹配 0 或更多个字符 \n
+     *  '+': 匹配 1 或更多个字符 \n
+     *  '@': 如果任何模式恰好出现一次 \n
+     *  '!': 如果任何模式都不匹配 \n
+     * @tparam Args std::string ...
+     * @param listener 用于监听订阅事件
+     * @param patterns 订阅的模式列表
+     * @return 当成功取消所有的订阅后返回 true，连接断开或其他导致订阅失败将返回 false
+     */
+    template<typename ... Args>
+    bool patternSubscribe(PubsubListener::ptr listener, const Args& ... patterns) {
+        static_assert(sizeof...(patterns));
+        return patternSubscribe(std::move(listener), {patterns...});
+    }
+
+    bool patternSubscribe(PubsubListener::ptr listener, const std::vector<std::string>& patterns);
+
+    /**
+     * 向一个频道发布消息
+     * @param channel 频道
+     * @param message 消息
+     * @return 是否发生成功
+     */
+    bool publish(const std::string& channel, const std::string& message);
+
+    template<typename T>
+    bool publish(const std::string& channel, const T& data) {
         Serializer s;
-        s << key;
+        s << data;
         s.reset();
-        Protocol::ptr response = Protocol::Create(Protocol::MsgType::RPC_SUBSCRIBE_REQUEST, s.toString(), 0);
-        m_chan << response;
+        return publish(channel, s.toString());
     }
 
-    Socket::ptr getSocket() {
-        return m_session->getSocket();
-    }
+    Socket::ptr getSocket() { return m_session->getSocket(); }
 
-    bool isClose() {
-        return !m_session || !m_session->isConnected();
-    }
+    bool isClose() { return !m_session || !m_session->isConnected(); }
 
 private:
     /**
@@ -165,14 +211,15 @@ private:
      * @brief rpc 连接对象的接收协程，负责接收服务器发送的 response 响应并根据响应类型进行处理
      */
     void handleRecv();
+
+    void handlePublish(Protocol::ptr proto);
     /**
      * @brief 通过序列号获取对应调用者的 Channel，将 response 放入 Channel 唤醒调用者
      */
-    void handleMethodResponse(Protocol::ptr response);
-    /**
-     * @brief 处理发布消息
-     */
-    void handlePublish(Protocol::ptr proto);
+    void recvProtocol(Protocol::ptr response);
+
+    std::pair<Protocol::ptr, bool> sendProtocol(Protocol::ptr request);
+
     /**
      * @brief 实际调用
      * @param[in] s 序列化完的请求
@@ -187,40 +234,9 @@ private:
             return val;
         }
 
-        // 开启一个 Channel 接收调用结果
-        co_chan<Protocol::ptr> recvChan;
-        // 本次调用的序列号
-        uint32_t id = 0;
-        std::map<uint32_t, co::co_chan<Protocol::ptr>>::iterator it;
-        {
-            std::unique_lock<co::co_mutex> lock(m_mutex);
-            id = m_sequenceId;
-            // 将请求序列号与接收 Channel 关联
-            it = m_responseHandle.emplace(m_sequenceId, recvChan).first;
-            ++m_sequenceId;
-        }
+        Protocol::ptr request = Protocol::Create(Protocol::MsgType::RPC_METHOD_REQUEST, s.toString());
 
-        // 创建请求协议，附带上请求 id
-        Protocol::ptr request =
-                Protocol::Create(Protocol::MsgType::RPC_METHOD_REQUEST,s.toString(), id);
-
-        // 向 send 协程的 Channel 发送消息
-        m_chan << request;
-
-        bool timeout = false;
-        Protocol::ptr response;
-        if (m_timeout == (uint64_t)-1) {
-            recvChan >> response;
-        } else {
-            if (!recvChan.TimedPop(response, std::chrono::milliseconds(m_timeout))) {
-                timeout = true;
-            }
-        }
-
-        if (!m_isClose) {
-            // 删除序列号与 Channel 的映射
-            m_responseHandle.erase(it);
-        }
+        auto [response, timeout] = sendProtocol(request);
 
         if (timeout) {
             // 超时
@@ -256,6 +272,7 @@ private:
     bool m_auto_heartbeat = true;
     std::atomic_bool m_isClose = true;
     std::atomic_bool m_isHeartClose = true;
+    co::co_chan<bool> m_recvCloseChan;
     // 超时时间
     uint64_t m_timeout = -1;
     // 服务器的连接
@@ -270,10 +287,12 @@ private:
     co::co_chan<Protocol::ptr> m_chan;
     // service provider心跳定时器
     CycleTimerTocken m_heartTimer;
-    // 处理订阅的消息回调函数
-    std::map<std::string, std::function<void(Serializer)>> m_subHandle;
-    // 保护m_subHandle
-    MutexType m_sub_mtx;
+    // 订阅监听器
+    PubsubListener::ptr m_listener;
+    // 订阅的频道
+    std::map<std::string, co::co_chan<bool>> m_subs;
+
+    MutexType m_pubsub_mutex;
 };
 
 

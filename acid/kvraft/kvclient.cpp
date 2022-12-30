@@ -12,12 +12,12 @@ static auto g_logger = GetLogInstance();
 static ConfigVar<uint64_t>::ptr g_rpc_timeout =
         Config::Lookup<uint64_t>("kvraft.rpc.timeout", 3000, "kvraft rpc timeout(ms)");
 
-// rpc 连接重试次数
-static ConfigVar<uint32_t>::ptr g_connect_retry =
-        Config::Lookup<uint32_t>("kvraft.rpc.connect_retry", 3, "kvraft rpc connect retry times");
+// 连接重试的延时
+static ConfigVar<uint32_t>::ptr g_connect_delay =
+        Config::Lookup<uint32_t>("kvraft.rpc.reconnect_delay", 2000, "kvraft rpc reconnect delay(ms)");
 
 static uint64_t s_rpc_timeout;
-static uint32_t s_connect_retry;
+static uint32_t s_connect_delay;
 
 namespace {
     struct KVClientInier{
@@ -27,10 +27,10 @@ namespace {
                 SPDLOG_LOGGER_INFO(g_logger, "kvraft rpc timeout changed from {} to {}", old_val, new_val);
                 s_rpc_timeout = new_val;
             });
-            s_connect_retry = g_connect_retry->getValue();
-            g_rpc_timeout->addListener([](const uint32_t& old_val, const uint32_t& new_val){
-                SPDLOG_LOGGER_INFO(g_logger, "kvraft rpc timeout changed from {} to {}", old_val, new_val);
-                s_connect_retry = new_val;
+            s_connect_delay = g_connect_delay->getValue();
+            g_connect_delay->addListener([](const uint32_t& old_val, const uint32_t& new_val){
+                SPDLOG_LOGGER_INFO(g_logger, "kvraft rpc reconnect delay changed from {} to {}", old_val, new_val);
+                s_connect_delay = new_val;
             });
         }
     };
@@ -46,11 +46,11 @@ KVClient::KVClient(std::map<int64_t, std::string> &servers) : m_clientId(GetRand
             SPDLOG_LOGGER_ERROR(g_logger, "lookup server[{}] address fail, address: {}", peer.second, peer.second);
             continue;
         }
-        auto server = std::make_shared<rpc::RpcClient>();
-        // 设置rpc超时时间
-        server->setTimeout(s_rpc_timeout);
-        m_servers[peer.first] = {address, server};
+        m_servers[peer.first] = address;
     }
+    // 设置rpc超时时间
+    setTimeout(s_rpc_timeout);
+    setHeartbeat(false);
     if (servers.empty()) {
         SPDLOG_LOGGER_CRITICAL(g_logger, "servers empty!");
     } else {
@@ -60,33 +60,36 @@ KVClient::KVClient(std::map<int64_t, std::string> &servers) : m_clientId(GetRand
 }
 
 KVClient::~KVClient() {
+    m_heart.stop();
     m_stop = true;
-    m_stopChan >> nullptr;
+    sleep(5);
 }
 
-std::string KVClient::Get(const std::string& key) {
+kvraft::Error KVClient::Get(const std::string& key, std::string& value) {
     CommandRequest request{.operation = GET, .key = key};
-    return Command(request).value;
+    CommandResponse response = Command(request);
+    value = response.value;
+    return response.error;
 }
 
-void KVClient::Put(const std::string& key, const std::string& value) {
+kvraft::Error KVClient::Put(const std::string& key, const std::string& value) {
     CommandRequest request{.operation = PUT, .key = key, .value = value};
-    Command(request);
+    return Command(request).error;
 }
 
-void KVClient::Append(const std::string& key, const std::string& value) {
+kvraft::Error KVClient::Append(const std::string& key, const std::string& value) {
     CommandRequest request{.operation = APPEND, .key = key, .value = value};
-    Command(request);
+    return Command(request).error;
 }
 
-bool KVClient::Delete(const std::string& key) {
+kvraft::Error KVClient::Delete(const std::string& key) {
     CommandRequest request{.operation = DELETE, .key = key};
-    return Command(request).error == Error::OK;
+    return Command(request).error;
 }
 
-void KVClient::Clear() {
+kvraft::Error KVClient::Clear() {
     CommandRequest request{.operation = CLEAR};
-    Command(request);
+    return Command(request).error;
 }
 
 CommandResponse KVClient::Command(CommandRequest& request) {
@@ -94,18 +97,17 @@ CommandResponse KVClient::Command(CommandRequest& request) {
     request.commandId = m_commandId;
     while (!m_stop) {
         CommandResponse response;
-        if (!connect(m_leaderId)) {
+        if (!connect()) {
             m_leaderId = nextLeaderId();
-            co_sleep(100);
+            co_sleep(s_connect_delay);
             continue;
         }
-        auto server = m_servers[m_leaderId].second;
-        Result<CommandResponse> result = server->call<CommandResponse>(COMMAND, request);
+        Result<CommandResponse> result = call<CommandResponse>(COMMAND, request);
         if (result.getCode() == RpcState::RPC_SUCCESS) {
             response = result.getVal();
         }
         if (result.getCode() == RpcState::RPC_CLOSED) {
-            server->close();
+            RpcClient::close();
         }
         if (result.getCode() != RpcState::RPC_SUCCESS || response.error == WRONG_LEADER || response.error == TIMEOUT) {
             if (response.leaderId >= 0) {
@@ -113,29 +115,31 @@ CommandResponse KVClient::Command(CommandRequest& request) {
             } else {
                 m_leaderId = nextLeaderId();
             }
+            RpcClient::close();
             continue;
         }
         ++m_commandId;
         return response;
     }
-    m_stopChan << true;
-    return {};
+    return {.error = Error::CLOSED};
 }
 
-bool KVClient::connect(int64_t id) {
-    auto server = m_servers[id].second;
-    auto address = m_servers[id].first;
-
-    if (!server->isClose()) {
+bool KVClient::connect() {
+    if (!isClose()) {
         return true;
     }
-    for (int i = 1; i <= (int)s_connect_retry; ++i) {
-        // 重连 Raft 节点
-        server->connect(address);
-        if (!server->isClose()) {
-            return true;
+    auto address = m_servers[m_leaderId];
+    RpcClient::connect(address);
+    if (!isClose()) {
+        if (m_heart.isCancel()) {
+            // 心跳
+            m_heart = CycleTimer(3000, [this] {
+                [[maybe_unused]]
+                std::string dummy;
+                Get("", dummy);
+            });
         }
-        co_sleep(10 * i);
+        return true;
     }
     return false;
 }
@@ -160,5 +164,62 @@ int64_t KVClient::nextLeaderId() {
     return it->first;
 }
 
+void KVClient::subscribe(PubsubListener::ptr listener, const std::vector<std::string>& channels) {
+    {
+        std::unique_lock<MutexType> lock(m_pubsub_mutex);
+        m_subs = channels;
+    }
+    while (true) {
+        // 连接上 leader
+        [[maybe_unused]]
+        std::string dummy;
+        Get("", dummy);
+        std::vector<std::string> vec;
+        {
+            std::unique_lock<MutexType> lock(m_pubsub_mutex);
+            vec = m_subs;
+        }
+        if (RpcClient::subscribe(listener, vec)) {
+            break;
+        }
+    }
+}
+
+
+void KVClient::unsubscribe(const std::string &channel) {
+    {
+        std::unique_lock<MutexType> lock(m_pubsub_mutex);
+        m_subs.erase(std::remove(m_subs.begin(), m_subs.end(), channel), m_subs.end());
+    }
+    RpcClient::unsubscribe(channel);
+}
+
+void KVClient::patternSubscribe(PubsubListener::ptr listener, const std::vector<std::string>& patterns) {
+    {
+        std::unique_lock<MutexType> lock(m_pubsub_mutex);
+        m_subs = patterns;
+    }
+    while (true) {
+        // 连接上 leader
+        [[maybe_unused]]std::string dummy;
+        Get("", dummy);
+        std::vector<std::string> vec;
+        {
+            std::unique_lock<MutexType> lock(m_pubsub_mutex);
+            vec = m_subs;
+        }
+        if (RpcClient::patternSubscribe(listener, vec)) {
+            break;
+        }
+    }
+}
+
+void KVClient::patternUnsubscribe(const std::string &pattern) {
+    {
+        std::unique_lock<MutexType> lock(m_pubsub_mutex);
+        m_subs.erase(std::remove(m_subs.begin(), m_subs.end(), pattern), m_subs.end());
+    }
+    RpcClient::patternUnsubscribe(pattern);
+}
 
 }
