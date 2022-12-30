@@ -38,15 +38,6 @@ void Main() {
         sleep(1);
     }
     server.bindRegistry(registry);
-    go [&] {
-        int n = 0;
-        while (true) {
-            sleep(3);
-            SPDLOG_INFO("server publish data {}", n);
-            server.publish("data", n);
-            ++n;
-        }
-    };
     server.start();
 }
 

@@ -2,6 +2,8 @@
 // Created by zavier on 2022/1/13.
 //
 
+#include <utility>
+
 #include "acid/rpc/rpc_client.h"
 
 using namespace acid;
@@ -16,7 +18,6 @@ void test1() {
     }
     int n=0;
     while (n!=1000) {
-        //ACID_LOG_DEBUG(g_logger) << n++;
         n++;
         client->callback("add", 0, n ,[](Result<int> res) {
             SPDLOG_INFO(res.toString());
@@ -31,54 +32,110 @@ void test1() {
     SPDLOG_INFO("sleep 2s {}", sl.toString());
     co_sched.Stop();
 }
+
+class ChannelListener : public PubsubListener {
+public:
+    ChannelListener(RpcClient::ptr client) : m_client(std::move(client)) {}
+    void onSubscribe(const std::string& channel) override {
+        SPDLOG_INFO("subscribe channel {}", channel);
+    }
+    void onUnsubscribe(const std::string& channel) override {
+        SPDLOG_INFO("unsubscribe channel {}", channel);
+    }
+    void onMessage(const std::string& channel, const std::string& message) override {
+        if (m_n++ > 5) {
+            // 取消订阅
+            m_client->unsubscribe(channel);
+        }
+        SPDLOG_INFO("channel {}, message {}", channel, message);
+    }
+private:
+    int m_n = 0;
+    RpcClient::ptr m_client;
+};
+
 void subscribe() {
     Address::ptr address = Address::LookupAny("127.0.0.1:9000");
-    RpcClient::ptr client(new RpcClient());
+    RpcClient::ptr client = std::make_shared<RpcClient>();
 
     if (!client->connect(address)) {
-        SPDLOG_INFO(address->toString());
+        SPDLOG_WARN(address->toString());
         return;
     }
-    client->subscribe("data",[](Serializer s){
-        int n;
-        s >> n;
-        SPDLOG_INFO(n);
-    });
-    while(true) {
-        sleep(2);
+
+    if (client->subscribe(std::make_shared<ChannelListener>(client), "number")) {
+        SPDLOG_WARN("unsubscribe");
+    } else {
+        SPDLOG_WARN("connection error");
     }
 }
-// 测试重连
-void test_retry() {
-    Address::ptr address = Address::LookupAny("127.0.0.1:9000");
-    RpcClient::ptr client(new RpcClient());
-    if (!client->connect(address)) {
-        SPDLOG_INFO(address->toString());
-        return;
+
+class PatternListener : public PubsubListener {
+public:
+    PatternListener(RpcClient::ptr client) : m_client(std::move(client)) {}
+    void onPatternSubscribe(const std::string& pattern) override {
+        SPDLOG_INFO("subscribe pattern {}", pattern);
     }
-    client->close();
-    if (!client->connect(address)) {
-        SPDLOG_INFO(address->toString());
-        return;
+    void onPatternUnsubscribe(const std::string& pattern) override {
+        SPDLOG_INFO("unsubscribe pattern {}", pattern);
     }
-    int n=0;
-    while (n!=1000) {
-        sleep(2);
-        n++;
-        auto res = client->call<int>("add",1,n);
-        if (res.getCode() == RpcState::RPC_CLOSED) {
-            if (!client->connect(address)) {
-                SPDLOG_INFO(address->toString());
-            }
-            res = client->call<int>("add",1,n);
+    void onPatternMessage(const std::string& pattern, const std::string& channel, const std::string& message) override {
+        if (m_n++ > 5) {
+            // 取消订阅
+            m_client->patternUnsubscribe(pattern);
         }
-        SPDLOG_INFO(res.toString());
+        SPDLOG_INFO("pattern {}, channel {}, message {}", pattern, channel, message);
+    }
+private:
+    int m_n = 0;
+    RpcClient::ptr m_client;
+};
+
+void pattern_subscribe() {
+    Address::ptr address = Address::LookupAny("127.0.0.1:9000");
+    RpcClient::ptr client = std::make_shared<RpcClient>();
+
+    if (!client->connect(address)) {
+        SPDLOG_WARN(address->toString());
+        return;
+    }
+
+    // 模式订阅
+    if (client->patternSubscribe(std::make_shared<PatternListener>(client), "number_*")) {
+        SPDLOG_WARN("unsubscribe");
+    } else {
+        SPDLOG_WARN("connection error");
+    }
+}
+
+void publish() {
+    Address::ptr address = Address::LookupAny("127.0.0.1:9000");
+    RpcClient::ptr client = std::make_shared<RpcClient>();
+
+    if (!client->connect(address)) {
+        SPDLOG_WARN(address->toString());
+        return;
+    }
+    sleep(1);
+    int n = 0;
+    while (!client->isClose() && n < 10) {
+        SPDLOG_INFO("publish {}", n);
+        client->publish("number", std::to_string(n));
+        client->publish("number_" + std::to_string(n), std::to_string(n));
+        n++;
+        sleep(3);
     }
     co_sched.Stop();
 }
+
+void test_pubsub() {
+    go subscribe;
+    go pattern_subscribe;
+    go publish;
+}
+
 int main() {
     //go test1;
-    go subscribe;
-    //go test_retry;
+    go test_pubsub;
     co_sched.Start(0);
 }
