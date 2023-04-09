@@ -64,9 +64,8 @@ void subscribe() {
         client->setTimeout(-1);
         std::string val;
         client->Get("name", val);
-        if (!client->subscribe(std::make_shared<MyListener>(), TOPIC_KEYSPACE + "save data")) {
-            SPDLOG_WARN("unsubscribe");
-        }
+        client->subscribe(std::make_shared<MyListener>(), TOPIC_KEYSPACE + "save data");
+        SPDLOG_WARN("unsubscribe");
     };
 
     go [] {
