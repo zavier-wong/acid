@@ -47,6 +47,8 @@ int64_t RaftLog::maybeAppend(int64_t prevLogIndex, int64_t prevLogTerm, int64_t 
                 append(std::vector<Entry>{entries.begin() + conflict_index - off, entries.end()});
             }
         }
+        // 更新commit
+        commitTo(std::min(committed, last_index_of_new_entries));
         return last_index_of_new_entries;
     }
     return -1;
