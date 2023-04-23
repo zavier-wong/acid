@@ -364,7 +364,6 @@ AppendEntriesReply RaftNode::handleAppendEntries(AppendEntriesArgs request) {
     std::unique_lock<MutexType> lock(m_mutex);
     AppendEntriesReply reply{};
     co_defer_scope {
-        persist();
         if (reply.success && m_logs.committed() < request.leaderCommit) {
            // 更新提交索引，为什么取了个最小？committed是leader发来的，是全局状态，但是当前节点
            // 可能落后于全局状态，所以取了最小值。last_index 是这个节点最新的索引， 不是最大的可靠索引，
@@ -374,6 +373,7 @@ AppendEntriesReply RaftNode::handleAppendEntries(AppendEntriesArgs request) {
            m_logs.commitTo(std::min(request.leaderCommit, m_logs.lastIndex()));
            m_applyCond.notify_one();
         }
+        persist();
         SPDLOG_LOGGER_TRACE(g_logger, "Node[{}] before processing AppendEntriesArgs {} and reply AppendEntriesResponse {}, state is {}",
             m_id, request.toString(), reply.toString(), toString());
     };
