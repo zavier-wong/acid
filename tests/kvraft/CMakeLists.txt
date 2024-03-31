@@ -14,7 +14,7 @@ foreach(var ${SRC_LIST})
     string(REGEX REPLACE ".cpp" "" tgt ${var})
 
     add_executable(${tgt} ${var})
-    set(LINK_ARGS libgo acid pthread dl yaml-cpp raft fmt)
+    set(LINK_ARGS libgo acid pthread dl yaml-cpp fmt)
     target_link_libraries(${tgt} -Wl,--start-group ${LINK_ARGS} -Wl,--end-group)
 endforeach(var)
 
